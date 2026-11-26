@@ -198,9 +198,9 @@ func (h *Handler) formatProgress(attrs map[string]any) string {
 
 func (h *Handler) formatDefault(r slog.Record, attrs map[string]any) string {
 	level := strings.ToLower(r.Level.String())
-	parts := []string{h.paint(level, dim), r.Message}
+	parts := []string{h.paint(level, dim), sanitize(r.Message)}
 	for k, v := range attrs {
-		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		parts = append(parts, fmt.Sprintf("%s=%s", k, sanitize(fmt.Sprint(v))))
 	}
 	return strings.Join(parts, " ")
 }
@@ -214,10 +214,32 @@ func (h *Handler) em(text, color string) string {
 }
 
 func (h *Handler) paint(color, text string) string {
+	text = sanitize(text)
 	if !h.color {
 		return text
 	}
 	return color + text + reset
+}
+
+// sanitize replaces control characters so values from requests or upstream
+// metadata cannot inject terminal escape sequences into the operator's log.
+func sanitize(s string) string {
+	clean := true
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c < 0x20 || c == 0x7f {
+			clean = false
+			break
+		}
+	}
+	if clean {
+		return s
+	}
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return '?'
+		}
+		return r
+	}, s)
 }
 
 func collectAttrs(r slog.Record, pre []slog.Attr) map[string]any {

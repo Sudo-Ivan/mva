@@ -221,3 +221,34 @@ func TestConcurrentDownloadSameDest(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestClientNonPositiveRetryStillFetches(t *testing.T) {
+	var hits atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	dir, root := testDataDir(t)
+	for _, retry := range []int{0, -1} {
+		hits.Store(0)
+		client := New(retry, 1)
+		data, err := client.Get(context.Background(), srv.URL)
+		if err != nil {
+			t.Fatalf("retry %d: %v", retry, err)
+		}
+		if string(data) != "ok" {
+			t.Fatalf("retry %d: got %q", retry, data)
+		}
+		dest := filepath.Join(root, "retry.bin")
+		_ = os.Remove(dest)
+		client = client.WithDataDir(dir)
+		if err := client.Download(context.Background(), srv.URL, dest); err != nil {
+			t.Fatalf("retry %d download: %v", retry, err)
+		}
+		if hits.Load() != 2 {
+			t.Fatalf("retry %d: upstream hits = %d, want 2", retry, hits.Load())
+		}
+	}
+}

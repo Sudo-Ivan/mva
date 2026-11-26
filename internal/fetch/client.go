@@ -37,7 +37,7 @@ type Client struct {
 func New(retryMax, baseMS int) *Client {
 	return &Client{
 		http:    sharedHTTPClient(constants.FetchTimeout),
-		retry:   retryMax,
+		retry:   normalizeRetry(retryMax),
 		baseMS:  baseMS,
 		headers: map[string]string{"User-Agent": buildinfo.UserAgent()},
 		locks:   make(map[string]*fileLock),
@@ -50,11 +50,20 @@ func NewWithHTTP(httpClient *http.Client, retryMax, baseMS int) *Client {
 	}
 	return &Client{
 		http:    httpClient,
-		retry:   retryMax,
+		retry:   normalizeRetry(retryMax),
 		baseMS:  baseMS,
 		headers: map[string]string{"User-Agent": buildinfo.UserAgent()},
 		locks:   make(map[string]*fileLock),
 	}
+}
+
+// normalizeRetry keeps the retry loops from running zero times, which would
+// make Get and Download return success without issuing a request.
+func normalizeRetry(retryMax int) int {
+	if retryMax < 1 {
+		return constants.DefaultRetryMax
+	}
+	return retryMax
 }
 
 func (c *Client) WithDataDir(dir vfs.FS) *Client {

@@ -317,6 +317,7 @@ func ReadFileAt(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = root.Close() }()
 	return root.ReadFile(name)
 }
 
@@ -330,5 +331,6 @@ func OpenFileAt(path string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = root.Close() }()
 	return root.Open(name)
 }

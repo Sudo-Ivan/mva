@@ -110,3 +110,27 @@ func TestFormatBytes(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatStripsControlCharacters(t *testing.T) {
+	var buf bytes.Buffer
+	h := New(&buf)
+	h.color = false
+	h.isTTY = false
+
+	logger := slog.New(h)
+	logger.Info("proxy miss\x1b]0;pwned\x07", "rel", "evil\x1b[31m/rel", "n", 1)
+
+	got := buf.String()
+	if strings.ContainsRune(got, 0x1b) {
+		t.Fatalf("log line contains ESC: %q", got)
+	}
+	if strings.ContainsRune(got, 0x07) {
+		t.Fatalf("log line contains BEL: %q", got)
+	}
+	if !strings.Contains(got, "proxy miss?]0;pwned?") {
+		t.Fatalf("message not sanitized: %q", got)
+	}
+	if !strings.Contains(got, "evil?[31m/rel") {
+		t.Fatalf("attr not sanitized: %q", got)
+	}
+}
