@@ -225,6 +225,8 @@ func TestLWJGLPatchedModulesUseBaseComponentVersion(t *testing.T) {
 		"libraries": [
 			{"name": "org.lwjgl:lwjgl-freetype:3.4.3-mojang-2.15.0", "downloads": {"artifact": {"sha1": "f1", "size": 1, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-freetype/3.4.3-mojang-2.15.0/lwjgl-freetype-3.4.3-mojang-2.15.0.jar"}}},
 			{"name": "org.lwjgl:lwjgl-freetype:3.4.3-mojang-2.15.0:natives-macos-arm64", "rules": [{"action": "allow", "os": {"name": "osx"}}], "downloads": {"artifact": {"sha1": "f2", "size": 1, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-freetype/3.4.3-mojang-2.15.0/lwjgl-freetype-3.4.3-mojang-2.15.0-natives-macos-arm64.jar"}}},
+			{"name": "org.lwjgl:lwjgl-freetype:3.4.3", "downloads": {"artifact": {"sha1": "f3", "size": 1, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-freetype/3.4.3/lwjgl-freetype-3.4.3.jar"}}},
+			{"name": "org.lwjgl:lwjgl-freetype:3.4.3:natives-macos-arm64", "rules": [{"action": "allow", "os": {"name": "osx"}}], "downloads": {"artifact": {"sha1": "f4", "size": 1, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-freetype/3.4.3/lwjgl-freetype-3.4.3-natives-macos-arm64.jar"}}},
 			{"name": "org.lwjgl:lwjgl:3.4.3", "downloads": {"artifact": {"sha1": "a1", "size": 1, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.4.3/lwjgl-3.4.3.jar"}}}
 		]
 	}`

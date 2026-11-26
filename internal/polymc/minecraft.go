@@ -484,6 +484,47 @@ func normalizeLWJGLRules(flat map[string]any, artifactName string) {
 	}
 }
 
+func preferLWJGLModuleVersion(newVersion, currentVersion, baseVersion string) bool {
+	if newVersion == currentVersion {
+		return false
+	}
+	newPatched := strings.HasPrefix(newVersion, baseVersion+"-")
+	currentPatched := strings.HasPrefix(currentVersion, baseVersion+"-")
+	if newPatched != currentPatched {
+		return newPatched
+	}
+	return compareVersion(newVersion, currentVersion) > 0
+}
+
+func dedupeLWJGLModules(entries []any, baseVersion string) []any {
+	type slot struct {
+		entry   any
+		version string
+	}
+	slots := map[string]slot{}
+	for _, entry := range entries {
+		lib, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := lib["name"].(string)
+		parts := strings.Split(name, ":")
+		if len(parts) < 3 {
+			continue
+		}
+		key := parts[0] + ":" + parts[1]
+		version := parts[2]
+		if current, ok := slots[key]; !ok || preferLWJGLModuleVersion(version, current.version, baseVersion) {
+			slots[key] = slot{entry: entry, version: version}
+		}
+	}
+	out := make([]any, 0, len(slots))
+	for _, entry := range slots {
+		out = append(out, entry.entry)
+	}
+	return out
+}
+
 // collectLWJGL scans archived version JSONs and returns flattened LWJGL
 // library entries keyed by LWJGL version plus the earliest MC releaseTime
 // that referenced each version.
@@ -542,7 +583,9 @@ func collectLWJGL(layout *store.Layout, publicURL, uid string) (map[string][]any
 			}
 		}
 	}
-	for _, l := range libs {
+	for ver, l := range libs {
+		l = dedupeLWJGLModules(l, ver)
+		libs[ver] = l
 		sort.Slice(l, func(i, j int) bool {
 			a, _ := l[i].(map[string]any)["name"].(string)
 			b, _ := l[j].(map[string]any)["name"].(string)
