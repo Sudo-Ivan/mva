@@ -35,6 +35,68 @@ func TestRequestPublicURLTrustProxyUsesHost(t *testing.T) {
 	}
 }
 
+func TestRequestPublicURLRejectsInjectedHeaders(t *testing.T) {
+	cases := []struct {
+		name  string
+		proto string
+		host  string
+		want  string
+	}{
+		{
+			name:  "bad proto falls back to request scheme",
+			proto: "javascript",
+			host:  "mc.example.com",
+			want:  "http://mc.example.com",
+		},
+		{
+			name:  "proto with payload is ignored",
+			proto: "https://evil.example.com",
+			host:  "mc.example.com",
+			want:  "http://mc.example.com",
+		},
+		{
+			name: "host with path is rejected",
+			host: "mc.example.com/evil",
+			want: "http://origin.example.com",
+		},
+		{
+			name: "host with userinfo is rejected",
+			host: "user@evil.example.com",
+			want: "http://origin.example.com",
+		},
+		{
+			name: "host with control characters is rejected",
+			host: "evil.example.com\r\nX-Injected: 1",
+			want: "http://origin.example.com",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", "http://origin.example.com/", nil)
+			r.Host = "origin.example.com"
+			if tc.proto != "" {
+				r.Header.Set("X-Forwarded-Proto", tc.proto)
+			}
+			if tc.host != "" {
+				r.Header.Set("X-Forwarded-Host", tc.host)
+			}
+			if got := RequestPublicURL(r, "http://configured.example.com", true); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRequestPublicURLInvalidEverythingFallsBack(t *testing.T) {
+	r := httptest.NewRequest("GET", "http://origin.example.com/", nil)
+	r.Host = "bad host"
+	r.Header.Set("X-Forwarded-Host", "bad/host")
+	r.Header.Set("X-Forwarded-Proto", "ftp")
+	if got := RequestPublicURL(r, "https://configured.example.com", true); got != "https://configured.example.com" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestApplyArchiveOverridesPreservesExplicitPublicURL(t *testing.T) {
 	cfg := &Config{
 		Listen:     ":8080",
