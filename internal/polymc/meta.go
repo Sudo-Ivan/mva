@@ -73,7 +73,7 @@ func components(layout *store.Layout, publicURL string) []component {
 	return []component{
 		{UIDMinecraft, "Minecraft", func() ([]byte, error) { return MinecraftIndex(layout, publicURL) }},
 		{UIDJava, "Java Runtimes", func() ([]byte, error) { return JavaIndex(layout, publicURL) }},
-		{UIDFabricLoader, "Fabric Loader", func() ([]byte, error) { return FabricLoaderIndex(layout, "") }},
+		{UIDFabricLoader, "Fabric Loader", func() ([]byte, error) { return FabricLoaderIndex(layout, "", publicURL) }},
 		{UIDIntermediary, "Intermediary Mappings", func() ([]byte, error) { return IntermediaryIndex(layout, publicURL) }},
 		{UIDLWJGL3, "LWJGL 3", func() ([]byte, error) { return LWJGLIndex(layout, publicURL, UIDLWJGL3) }},
 		{UIDLWJGL2, "LWJGL 2", func() ([]byte, error) { return LWJGLIndex(layout, publicURL, UIDLWJGL2) }},
@@ -124,7 +124,7 @@ func ServeMeta(layout *store.Layout, relPath, mcVersion, publicURL string) ([]by
 		data, err := JavaIndex(layout, publicURL)
 		return data, true, err
 	case UIDFabricLoader + "/index.json":
-		data, err := FabricLoaderIndex(layout, mcVersion)
+		data, err := FabricLoaderIndex(layout, mcVersion, publicURL)
 		return data, true, err
 	case UIDIntermediary + "/index.json":
 		data, err := IntermediaryIndex(layout, publicURL)
@@ -169,17 +169,17 @@ func ServeMeta(layout *store.Layout, relPath, mcVersion, publicURL string) ([]by
 	return nil, false, nil
 }
 
-func FabricLoaderIndex(layout *store.Layout, mcVersion string) ([]byte, error) {
+func FabricLoaderIndex(layout *store.Layout, mcVersion, publicURL string) ([]byte, error) {
 	if mcVersion != "" {
-		return fabricLoaderIndexForMC(layout, mcVersion)
+		return fabricLoaderIndexForMC(layout, mcVersion, publicURL)
 	}
 	if data, ok := readFabricMeta(layout, "v2/versions/loader"); ok {
 		return LoaderIndexFromGlobalDataWithTimes(data, LoaderReleaseTimes(context.Background()))
 	}
-	return aggregateLoaderIndex(layout)
+	return aggregateLoaderIndex(layout, publicURL)
 }
 
-func fabricLoaderIndexForMC(layout *store.Layout, mcVersion string) ([]byte, error) {
+func fabricLoaderIndexForMC(layout *store.Layout, mcVersion, publicURL string) ([]byte, error) {
 	encMC := fabric.EncodeGameVersion(mcVersion)
 	rel := "v2/versions/loader/" + encMC
 	data, ok := readFabricMeta(layout, rel)
@@ -214,7 +214,21 @@ func fabricLoaderIndexForMC(layout *store.Layout, mcVersion string) ([]byte, err
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("no fabric loaders archived for %s", mcVersion)
 	}
-	applyReleaseTimes(entries, LoaderReleaseTimes(context.Background()))
+	times := LoaderReleaseTimes(context.Background())
+	applyReleaseTimes(entries, times)
+	for i := range entries {
+		detailRel := rel + "/" + fabric.EncodeGameVersion(entries[i].Version)
+		raw, ok := readFabricMeta(layout, detailRel)
+		if !ok {
+			continue
+		}
+		detail, err := LoaderVersionFromDetailData(raw, entries[i].Version, mcVersion, publicURL, times)
+		if err != nil {
+			continue
+		}
+		sum := sha256.Sum256(detail)
+		entries[i].SHA256 = hex.EncodeToString(sum[:])
+	}
 	return marshalVersionList(UIDFabricLoader, "Fabric Loader", entries)
 }
 
@@ -290,13 +304,14 @@ func loaderIndexFromGlobalData(data []byte, times map[string]string) ([]byte, er
 	return marshalVersionList(UIDFabricLoader, "Fabric Loader", entries)
 }
 
-func aggregateLoaderIndex(layout *store.Layout) ([]byte, error) {
+func aggregateLoaderIndex(layout *store.Layout, publicURL string) ([]byte, error) {
 	loaderDir := filepath.Join(layout.FabricMetaDir(), "v2", "versions", "loader", "_mc")
 	entries, err := layout.ReadDir(loaderDir)
 	if err != nil {
 		return nil, fmt.Errorf("no fabric loader metadata archived")
 	}
 	seen := make(map[string]VersionEntry)
+	mcByLoader := make(map[string]string)
 	for _, ent := range entries {
 		if ent.IsDir() || !strings.HasSuffix(ent.Name(), ".json") {
 			continue
@@ -319,6 +334,7 @@ func aggregateLoaderIndex(layout *store.Layout) ([]byte, error) {
 				continue
 			}
 			if _, ok := seen[loader]; !ok {
+				mcByLoader[loader] = mcFile
 				seen[loader] = VersionEntry{
 					Version:     loader,
 					Type:        "release",
@@ -342,7 +358,25 @@ func aggregateLoaderIndex(layout *store.Layout) ([]byte, error) {
 		entry.Recommended = false
 		out = append(out, entry)
 	}
-	applyReleaseTimes(out, LoaderReleaseTimes(context.Background()))
+	times := LoaderReleaseTimes(context.Background())
+	applyReleaseTimes(out, times)
+	for i := range out {
+		mc := mcByLoader[out[i].Version]
+		if mc == "" {
+			continue
+		}
+		detailRel := "v2/versions/loader/" + mc + "/" + fabric.EncodeGameVersion(out[i].Version)
+		raw, ok := readFabricMeta(layout, detailRel)
+		if !ok {
+			continue
+		}
+		detail, err := LoaderVersionFromDetailData(raw, out[i].Version, mc, publicURL, times)
+		if err != nil {
+			continue
+		}
+		sum := sha256.Sum256(detail)
+		out[i].SHA256 = hex.EncodeToString(sum[:])
+	}
 	return marshalVersionList(UIDFabricLoader, "Fabric Loader", out)
 }
 

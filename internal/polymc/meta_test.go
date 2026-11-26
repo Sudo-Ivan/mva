@@ -50,7 +50,7 @@ func TestFabricLoaderIndexFromPairs(t *testing.T) {
 	if err := os.WriteFile(detailPath, []byte(`{"loader":{"version":"0.16.9"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	data, err := FabricLoaderIndex(layout, "1.21.1")
+	data, err := FabricLoaderIndex(layout, "1.21.1", "http://mirror")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestFabricLoaderEndToEndUsesStorageLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	index, err := FabricLoaderIndex(layout, "1.21.1")
+	index, err := FabricLoaderIndex(layout, "1.21.1", "http://mirror")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestFabricLoaderEndToEndUsesStorageLayout(t *testing.T) {
 	if err := json.Unmarshal(index, &list); err != nil {
 		t.Fatal(err)
 	}
-	if len(list.Versions) != 1 || list.Versions[0].Version != "0.18.4" {
+	if len(list.Versions) != 1 || list.Versions[0].Version != "0.18.4" || list.Versions[0].SHA256 == "" {
 		t.Fatalf("bad fabric index: %s", index)
 	}
 
