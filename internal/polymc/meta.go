@@ -173,9 +173,6 @@ func FabricLoaderIndex(layout *store.Layout, mcVersion, publicURL string) ([]byt
 	if mcVersion != "" {
 		return fabricLoaderIndexForMC(layout, mcVersion, publicURL)
 	}
-	if data, ok := readFabricMeta(layout, "v2/versions/loader"); ok {
-		return LoaderIndexFromGlobalDataWithTimes(data, LoaderReleaseTimes(context.Background()))
-	}
 	return aggregateLoaderIndex(layout, publicURL)
 }
 
