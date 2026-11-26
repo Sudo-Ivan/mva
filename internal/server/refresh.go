@@ -20,6 +20,7 @@ func (s *Server) StartAutoRefresh(ctx context.Context) {
 	}
 	go func() {
 		s.log.Info("auto-refresh enabled", "interval", interval)
+		s.prewarmPolyMCMeta()
 		s.refreshArchive(ctx)
 		t := time.NewTicker(interval)
 		defer t.Stop()
@@ -39,9 +40,24 @@ func (s *Server) refreshArchive(ctx context.Context) {
 	switch {
 	case err == nil:
 		s.invExpiry.Store(0)
+		s.javaExpiry.Store(0)
+		s.metaResp.Clear()
+		s.metaCount.Store(0)
+		go s.prewarmPolyMCMeta()
 	case errors.Is(err, archive.ErrInProgress):
 		s.log.Debug("auto-refresh skipped, archive in progress")
 	default:
 		s.log.Warn("auto-refresh failed", "err", err)
+	}
+}
+
+// prewarmPolyMCMeta generates the root PolyMC index in the background. Root
+// generation also populates the component index cache entries used by
+// launchers, so the first client does not pay the full cold-cache cost.
+func (s *Server) prewarmPolyMCMeta() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	if _, err := s.servePolyMCMeta(ctx, "index.json", "", s.cfg.PublicURL); err != nil {
+		s.log.Debug("polymc meta prewarm failed", "err", err)
 	}
 }
