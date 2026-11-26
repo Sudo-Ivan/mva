@@ -165,6 +165,14 @@ func (c *Client) Do(ctx context.Context, url string, fwd http.Header) (*http.Res
 	return nil, last
 }
 
+// Lock serializes work for dest and returns the unlock function. It is used
+// by callers that need the same single-flight behavior as Download while
+// streaming the transfer themselves.
+func (c *Client) Lock(dest string) func() {
+	l := c.acquireLock(dest)
+	return func() { c.releaseLock(dest, l) }
+}
+
 func (c *Client) acquireLock(dest string) *fileLock {
 	c.locksMu.Lock()
 	l := c.locks[dest]

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"minecraft-version-archive/internal/fetch"
 	"minecraft-version-archive/internal/integrity"
 	"minecraft-version-archive/internal/mojang"
+	"minecraft-version-archive/internal/safepath"
 	"minecraft-version-archive/internal/store"
 )
 
@@ -179,6 +181,113 @@ func (p *proxyHelper) download(ctx context.Context, url, dest string, spec integ
 	}
 	return p.client.Download(ctx, url, dest)
 }
+
+// streamCache relays an upstream response to the client while writing the
+// same bytes into the proxy cache. The client receives data immediately on a
+// cache miss instead of waiting for the mirror-side download to finish.
+// Client disconnects do not abort the upstream transfer; completing it seeds
+// the cache for the next request.
+func (p *proxyHelper) streamCache(ctx context.Context, url, dest string, spec integrity.Spec, w http.ResponseWriter, r *http.Request) (int64, error) {
+	unlock := p.client.Lock(dest)
+	defer unlock()
+
+	fsys, err := p.layout.FS()
+	if err != nil {
+		return 0, err
+	}
+	if spec.Known() {
+		if err := integrity.VerifyFile(fsys, dest, spec); err == nil {
+			return 0, errAlreadyCached
+		}
+	} else if fsys.Exists(dest) {
+		return 0, errAlreadyCached
+	}
+
+	resp, err := p.client.Do(context.WithoutCancel(ctx), url, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+		return 0, fmt.Errorf("upstream %s", resp.Status)
+	}
+
+	tmp := dest + constants.FilePartSuffix
+	_ = fsys.Remove(tmp)
+	if err := fsys.MkdirAll(filepath.Dir(tmp), safepath.DirPerm); err != nil {
+		return 0, err
+	}
+	out, err := fsys.Create(tmp)
+	if err != nil {
+		return 0, err
+	}
+
+	h := w.Header()
+	for _, k := range []string{constants.HeaderContentType, constants.HeaderContentLength} {
+		if v := resp.Header.Get(k); v != "" {
+			h[k] = []string{v}
+		}
+	}
+	h[constants.HeaderAcceptRanges] = constants.AcceptRanges
+	w.WriteHeader(http.StatusOK)
+
+	var sent int64
+	clientGone := r.Method == http.MethodHead
+	copyErr := error(nil)
+	buf := make([]byte, 256<<10)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			chunk := buf[:n]
+			written := 0
+			for written < len(chunk) {
+				m, writeErr := out.Write(chunk[written:])
+				written += m
+				if writeErr != nil {
+					copyErr = writeErr
+					break
+				}
+			}
+			if copyErr != nil {
+				break
+			}
+			if !clientGone {
+				m, writeErr := w.Write(chunk)
+				sent += int64(m)
+				if writeErr != nil {
+					clientGone = true
+				}
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			copyErr = readErr
+			break
+		}
+	}
+	closeErr := out.Close()
+	if copyErr == nil {
+		copyErr = closeErr
+	}
+	if copyErr != nil {
+		_ = fsys.Remove(tmp)
+		return sent, copyErr
+	}
+	if err := integrity.VerifyFile(fsys, tmp, spec); err != nil {
+		_ = fsys.Remove(tmp)
+		return sent, err
+	}
+	if err := fsys.Rename(tmp, dest); err != nil {
+		_ = fsys.Remove(tmp)
+		return sent, err
+	}
+	return sent, nil
+}
+
+var errAlreadyCached = fmt.Errorf("already cached")
 
 // stream relays an upstream response directly to w, forwarding the client's
 // Range header so partial downloads work without buffering the whole file.

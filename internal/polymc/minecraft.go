@@ -32,8 +32,12 @@ func lwjglUID(name string) string {
 	return ""
 }
 
-// lwjglVersion returns the LWJGL version a Mojang version JSON depends on.
+// lwjglVersion returns the base LWJGL version a Mojang version JSON depends
+// on. Some modules use patched versions (for example the Mojang FreeType
+// build), but those modules belong to the base LWJGL component rather than
+// forming a separate component version.
 func lwjglVersion(libs []any) string {
+	fallback := ""
 	for _, e := range libs {
 		lib, ok := e.(map[string]any)
 		if !ok {
@@ -44,11 +48,17 @@ func lwjglVersion(libs []any) string {
 			continue
 		}
 		parts := strings.Split(name, ":")
-		if len(parts) >= 3 {
+		if len(parts) < 3 {
+			continue
+		}
+		if parts[1] == "lwjgl" {
 			return parts[2]
 		}
+		if fallback == "" {
+			fallback = parts[2]
+		}
 	}
-	return ""
+	return fallback
 }
 
 // lwjglRequires returns the requires clause for a component that pulls in the
@@ -377,7 +387,7 @@ func LWJGLIndex(layout *store.Layout, publicURL string, uid string) ([]byte, err
 	}
 	entries := make([]VersionEntry, 0, len(vers))
 	for _, v := range vers {
-		body, err := marshalLWJGLVersion(uid, name, v, libs[v])
+		body, err := marshalLWJGLVersion(uid, name, v, libs[v], times[v])
 		if err != nil {
 			continue
 		}
@@ -398,7 +408,7 @@ func LWJGLIndex(layout *store.Layout, publicURL string, uid string) ([]byte, err
 // LWJGLVersion emits a single LWJGL component version built from the union of
 // LWJGL library entries found across archived Minecraft versions.
 func LWJGLVersion(layout *store.Layout, publicURL, uid, version string) ([]byte, error) {
-	libs, _, err := collectLWJGL(layout, publicURL, uid)
+	libs, times, err := collectLWJGL(layout, publicURL, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -410,16 +420,21 @@ func LWJGLVersion(layout *store.Layout, publicURL, uid, version string) ([]byte,
 	if uid == UIDLWJGL2 {
 		name = "LWJGL 2"
 	}
-	return marshalLWJGLVersion(uid, name, version, entries)
+	return marshalLWJGLVersion(uid, name, version, entries, times[version])
 }
 
-func marshalLWJGLVersion(uid, name, version string, libs []any) ([]byte, error) {
+func marshalLWJGLVersion(uid, name, version string, libs []any, releaseTime string) ([]byte, error) {
+	if releaseTime == "" {
+		releaseTime = "1970-01-01T00:00:00Z"
+	}
 	out := map[string]any{
 		"formatVersion": 1,
 		"uid":           uid,
 		"name":          name,
 		"version":       version,
 		"type":          "release",
+		"releaseTime":   releaseTime,
+		"volatile":      true,
 		"order":         1,
 		"libraries":     libs,
 	}
@@ -427,6 +442,46 @@ func marshalLWJGLVersion(uid, name, version string, libs []any) ([]byte, error) 
 		out["conflicts"] = []map[string]string{{"uid": UIDLWJGL2}}
 	}
 	return json.MarshalIndent(out, "", "    ")
+}
+
+// normalizeLWJGLRules rewrites Mojang's platform rules to the runtime
+// classifiers Prism uses. Mojang uses the generic osx/windows rule for arm64
+// natives as well as x64 natives. Keeping that rule would either select both
+// native jars or skip arm64 entirely, so the classifier-specific entries need
+// precise rule names.
+func normalizeLWJGLRules(flat map[string]any, artifactName string) {
+	if !strings.Contains(artifactName, "-natives-") {
+		return
+	}
+	rules, ok := flat["rules"].([]any)
+	if !ok || len(rules) == 0 {
+		return
+	}
+	osName := ""
+	switch {
+	case strings.Contains(artifactName, "-natives-macos-arm64:"):
+		osName = "osx-arm64"
+	case strings.Contains(artifactName, "-natives-windows-arm64:"):
+		osName = "windows-arm64"
+	case strings.Contains(artifactName, "-natives-linux-arm64:"):
+		osName = "linux-arm64"
+	case strings.Contains(artifactName, "-natives-linux-riscv64:"):
+		osName = "linux-riscv64"
+	}
+	if osName == "" {
+		return
+	}
+	for _, e := range rules {
+		rule, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		osv, ok := rule["os"].(map[string]any)
+		if !ok {
+			continue
+		}
+		osv["name"] = osName
+	}
 }
 
 // collectLWJGL scans archived version JSONs and returns flattened LWJGL
@@ -460,7 +515,10 @@ func collectLWJGL(layout *store.Layout, publicURL, uid string) (map[string][]any
 			if len(parts) < 3 {
 				continue
 			}
-			ver := parts[2]
+			ver := lwjglVersion(listAny(doc["libraries"]))
+			if ver == "" {
+				ver = parts[2]
+			}
 			flat := map[string]any{}
 			for k, v := range lib {
 				if k == "name" {
@@ -469,6 +527,7 @@ func collectLWJGL(layout *store.Layout, publicURL, uid string) (map[string][]any
 				flat[k] = v
 			}
 			flat["name"] = lwjglArtifact(name)
+			normalizeLWJGLRules(flat, flat["name"].(string))
 			rewriteLibDownloads(flat, base)
 			if seen[ver] == nil {
 				seen[ver] = map[string]bool{}

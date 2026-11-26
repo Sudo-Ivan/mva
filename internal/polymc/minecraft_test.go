@@ -213,3 +213,77 @@ func TestIndexJSONIncludesComponents(t *testing.T) {
 		t.Fatal("net.minecraft.java should be absent without temurin data")
 	}
 }
+
+func TestLWJGLPatchedModulesUseBaseComponentVersion(t *testing.T) {
+	root := t.TempDir()
+	layout := store.New(root)
+	if err := layout.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+	versionJSON := `{
+		"id": "26.3", "type": "release", "releaseTime": "2026-01-01T00:00:00Z",
+		"libraries": [
+			{"name": "org.lwjgl:lwjgl-freetype:3.4.3-mojang-2.15.0", "downloads": {"artifact": {"sha1": "f1", "size": 1, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-freetype/3.4.3-mojang-2.15.0/lwjgl-freetype-3.4.3-mojang-2.15.0.jar"}}},
+			{"name": "org.lwjgl:lwjgl-freetype:3.4.3-mojang-2.15.0:natives-macos-arm64", "rules": [{"action": "allow", "os": {"name": "osx"}}], "downloads": {"artifact": {"sha1": "f2", "size": 1, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-freetype/3.4.3-mojang-2.15.0/lwjgl-freetype-3.4.3-mojang-2.15.0-natives-macos-arm64.jar"}}},
+			{"name": "org.lwjgl:lwjgl:3.4.3", "downloads": {"artifact": {"sha1": "a1", "size": 1, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.4.3/lwjgl-3.4.3.jar"}}}
+		]
+	}`
+	if err := os.WriteFile(layout.VersionJSON("26.3"), []byte(versionJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mc, err := MinecraftDetail(layout, "26.3", "http://mirror")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mcDoc map[string]any
+	if err := json.Unmarshal(mc, &mcDoc); err != nil {
+		t.Fatal(err)
+	}
+	reqs, _ := mcDoc["requires"].([]any)
+	if len(reqs) != 1 || reqs[0].(map[string]any)["suggests"] != "3.4.3" {
+		t.Fatalf("patched module should not replace base requirement: %v", mcDoc["requires"])
+	}
+
+	index, err := LWJGLIndex(layout, "http://mirror", UIDLWJGL3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list struct {
+		Versions []VersionEntry `json:"versions"`
+	}
+	if err := json.Unmarshal(index, &list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Versions) != 1 || list.Versions[0].Version != "3.4.3" {
+		t.Fatalf("bad merged lwjgl index: %s", index)
+	}
+
+	detail, err := LWJGLVersion(layout, "http://mirror", UIDLWJGL3, "3.4.3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(detail, &doc); err != nil {
+		t.Fatal(err)
+	}
+	libs, _ := doc["libraries"].([]any)
+	if len(libs) != 3 {
+		t.Fatalf("expected merged lwjgl libraries, got %v", libs)
+	}
+	foundFreeType := false
+	foundArmRule := false
+	for _, e := range libs {
+		lib := e.(map[string]any)
+		if lib["name"] == "org.lwjgl:lwjgl-freetype:3.4.3-mojang-2.15.0" {
+			foundFreeType = true
+		}
+		if lib["name"] == "org.lwjgl:lwjgl-freetype-natives-macos-arm64:3.4.3-mojang-2.15.0" {
+			rules := lib["rules"].([]any)
+			foundArmRule = rules[0].(map[string]any)["os"].(map[string]any)["name"] == "osx-arm64"
+		}
+	}
+	if !foundFreeType || !foundArmRule {
+		t.Fatalf("missing patched module or arm64 rule: %s", detail)
+	}
+}

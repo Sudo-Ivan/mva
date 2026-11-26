@@ -616,11 +616,16 @@ func (s *Server) missBig(dest string, target func(ctx context.Context) (string, 
 			return false
 		}
 		if p.proxyCache && p.hasDataDir {
-			if err := p.download(r.Context(), url, dest, spec); err != nil {
-				s.recordProxyError("proxy fetch", err, "path", dest)
-				return false
+			n, err := p.streamCache(r.Context(), url, dest, spec, w, r)
+			if err == errAlreadyCached {
+				s.servePath(w, r, dest)
+				return true
 			}
-			s.servePath(w, r, dest)
+			if err != nil {
+				s.recordProxyError("proxy fetch", err, "path", dest)
+				return n > 0
+			}
+			s.stats.RecordServe(n, false)
 			return true
 		}
 		n, err := p.stream(r.Context(), url, w, r)
