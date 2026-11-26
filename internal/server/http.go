@@ -35,7 +35,18 @@ var (
 
 type inventorySnap struct {
 	inv      p2p.Inventory
+	body     []byte
+	gz       []byte
+	etag     string
+	summary  []byte
 	versions int
+}
+
+type inventorySummary struct {
+	Versions  int   `json:"versions"`
+	Libraries int   `json:"libraries"`
+	Assets    int   `json:"assets"`
+	Bytes     int64 `json:"bytes"`
 }
 
 type Server struct {
@@ -43,7 +54,7 @@ type Server struct {
 	layout        *store.Layout
 	cache         *cache.Memory
 	loader        *coalesce.Loader
-	invGroup      *coalesce.Group[p2p.Inventory]
+	invGroup      *coalesce.Group[*inventorySnap]
 	archiver      *archive.Archiver
 	proxy         *proxyHelper
 	stats         *stats.Collector
@@ -87,7 +98,7 @@ func New(cfg *config.Config, archiver *archive.Archiver, log *slog.Logger) *Serv
 		layout:    layout,
 		cache:     mem,
 		loader:    coalesce.New(),
-		invGroup:  coalesce.NewGroup[p2p.Inventory](),
+		invGroup:  coalesce.NewGroup[*inventorySnap](),
 		metaGroup: coalesce.NewGroup[*metaResponse](),
 		archiver:  archiver,
 		stats:     st,
@@ -132,6 +143,7 @@ func (s *Server) routes() {
 		s.mux.HandleFunc(constants.RouteStats, s.handleStats)
 	}
 	s.mux.HandleFunc(constants.RouteInventory, s.handleInventory)
+	s.mux.HandleFunc(constants.RouteInventorySummary, s.handleInventorySummary)
 	s.mux.HandleFunc(constants.RouteJavaIndex, s.handleJavaIndex)
 	s.mux.HandleFunc(constants.RouteJavaTemurinIdx, s.handleJavaTemurinIndex)
 	s.mux.HandleFunc(constants.RouteJavaTemurinBin, s.handleJavaTemurinBinary)
@@ -240,37 +252,69 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInventory(w http.ResponseWriter, r *http.Request) {
-	inv := s.cachedInventory(r.Context())
+	snap := s.cachedInventorySnap(r.Context())
+	if snap == nil {
+		http.NotFound(w, r)
+		return
+	}
 	w.Header()[constants.HeaderContentType] = constants.ContentTypeJSON
-	w.Header()[constants.HeaderCacheControl] = []string{constants.CacheControlShort}
-	_ = p2p.WriteInventory(w, inv)
+	s.emitTagged(w, r, snap.body, snap.gz, true, constants.CacheControlShort, snap.etag)
+}
+
+func (s *Server) handleInventorySummary(w http.ResponseWriter, r *http.Request) {
+	snap := s.cachedInventorySnap(r.Context())
+	if snap == nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header()[constants.HeaderContentType] = constants.ContentTypeJSON
+	s.emitTagged(w, r, snap.summary, nil, true, constants.CacheControlShort, "")
 }
 
 func (s *Server) cachedInventory(ctx context.Context) p2p.Inventory {
+	if snap := s.cachedInventorySnap(ctx); snap != nil {
+		return snap.inv
+	}
+	return p2p.Inventory{}
+}
+
+func (s *Server) cachedInventorySnap(ctx context.Context) *inventorySnap {
 	now := time.Now().UnixNano()
 	if now < s.invExpiry.Load() {
 		if snap := s.invSnap.Load(); snap != nil {
-			return snap.inv
+			return snap
 		}
 	}
-	inv, err := s.invGroup.Do(ctx, "inventory", func(context.Context) (p2p.Inventory, error) {
+	snap, err := s.invGroup.Do(ctx, "inventory", func(context.Context) (*inventorySnap, error) {
 		if time.Now().UnixNano() < s.invExpiry.Load() {
 			if snap := s.invSnap.Load(); snap != nil {
-				return snap.inv, nil
+				return snap, nil
 			}
 		}
 		built := s.archiver.BuildInventory()
-		s.invSnap.Store(&inventorySnap{inv: built, versions: len(built.Versions)})
+		snap := &inventorySnap{
+			inv:      built,
+			versions: len(built.Versions),
+		}
+		snap.body, _ = json.Marshal(built)
+		snap.summary, _ = json.Marshal(inventorySummary{
+			Versions:  len(built.Versions),
+			Libraries: len(built.Libraries),
+			Assets:    len(built.Assets),
+			Bytes:     built.Bytes,
+		})
+		snap.etag = makeETag(snap.body)
+		if len(snap.body) >= constants.GzipMinBytes {
+			snap.gz = gzipData(snap.body)
+		}
+		s.invSnap.Store(snap)
 		s.invExpiry.Store(time.Now().UnixNano() + int64(s.cfg.InventoryTTL)*int64(time.Second))
-		return built, nil
+		return snap, nil
 	})
 	if err != nil {
-		if snap := s.invSnap.Load(); snap != nil {
-			return snap.inv
-		}
-		return p2p.Inventory{}
+		return s.invSnap.Load()
 	}
-	return inv
+	return snap
 }
 
 func (s *Server) versionCount() int {

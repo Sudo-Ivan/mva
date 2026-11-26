@@ -214,8 +214,8 @@ func TestVersionDetailPage(t *testing.T) {
 		t.Fatalf("content-type = %q", ct)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "Download bay") {
-		t.Fatal("detail page shell missing download bay")
+	if !strings.Contains(string(body), "Downloads") {
+		t.Fatal("detail page shell missing downloads section")
 	}
 }
 

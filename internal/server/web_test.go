@@ -134,3 +134,13 @@ func TestWebAssets(t *testing.T) {
 		t.Fatalf("missing asset: status = %d", resp.StatusCode)
 	}
 }
+
+func TestSiteUsesInventorySummary(t *testing.T) {
+	js := string(webAssets["site.js"].body)
+	if !strings.Contains(js, "/p2p/inventory/summary") {
+		t.Fatal("site does not request the inventory summary")
+	}
+	if strings.Contains(js, "fetch('/p2p/inventory')") {
+		t.Fatal("site still requests the full inventory")
+	}
+}

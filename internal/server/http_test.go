@@ -305,6 +305,35 @@ func TestP2PInventory(t *testing.T) {
 	if len(inv.Versions) != 1 || inv.Versions[0] != "1.0" {
 		t.Fatalf("versions = %v", inv.Versions)
 	}
+	if resp.Header.Get("ETag") == "" {
+		t.Fatal("inventory response has no ETag")
+	}
+}
+
+func TestP2PInventorySummary(t *testing.T) {
+	ts, _ := testServer(t, false)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/p2p/inventory/summary")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var inv struct {
+		Versions  int   `json:"versions"`
+		Libraries int   `json:"libraries"`
+		Assets    int   `json:"assets"`
+		Bytes     int64 `json:"bytes"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&inv); err != nil {
+		t.Fatal(err)
+	}
+	if inv.Versions != 1 {
+		t.Fatalf("versions = %d, want 1", inv.Versions)
+	}
+	if inv.Bytes <= 0 {
+		t.Fatalf("bytes = %d, want a positive total", inv.Bytes)
+	}
 }
 
 func testServerLayout(t *testing.T) (*httptest.Server, *store.Layout) {

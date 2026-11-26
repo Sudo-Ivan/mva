@@ -232,7 +232,7 @@ inventory_ttl_sec = 30
 trust_proxy = true
 ```
 
-`inventory_ttl_sec` caches `/p2p/inventory` and `/java` index responses so those listings do not walk the full data directory on every request.
+`inventory_ttl_sec` caches `/p2p/inventory`, `/p2p/inventory/summary`, and `/java` index responses so those listings do not walk the full data directory on every request.
 
 `trust_proxy` uses `X-Forwarded-Proto` and `X-Forwarded-Host` when rewriting manifest and version JSON URLs behind a reverse proxy.
 
@@ -291,7 +291,7 @@ Environment overrides: `MVA_S3_ENABLED`, `MVA_S3_BUCKET`, `MVA_S3_PREFIX`, `MVA_
 | `MVA_S3_ENABLED` | Store the data directory in S3-compatible object storage |
 | `MVA_S3_BUCKET` | S3 bucket name |
 | `MVA_S3_PREFIX` | Key prefix inside the bucket |
-| `MVA_S3_ENDPOINT` | S3 endpoint (`host[:port]` or URL; empty = AWS) |
+| `MVA_S3_ENDPOINT` | S3 endpoint (`host[:port]` or URL. Empty means AWS) |
 | `MVA_S3_REGION` | S3 region |
 | `MVA_S3_ACCESS_KEY` / `MVA_S3_SECRET_KEY` / `MVA_S3_SESSION_TOKEN` | Static credentials for private buckets |
 | `MVA_S3_ANONYMOUS` | Never sign requests (public buckets) |
@@ -325,7 +325,7 @@ A persistent SHA1 index at `data/inventory/sha1_index.json` records every verifi
 
 | Path | Description |
 |------|-------------|
-| `/` | Embedded landing page for browsers (`Accept: text/html`); JSON index with public URL and endpoint list otherwise (`?json` forces JSON) |
+| `/` | Embedded landing page for browsers (`Accept: text/html`). JSON index with public URL and endpoint list otherwise (`?json` forces JSON) |
 | `/docs` | API reference page |
 | `/web/{file}` | Site assets (stylesheets, fonts) |
 | `/mc/game/version_manifest_v2.json` | Mirrored manifest with local URLs |
@@ -341,6 +341,7 @@ A persistent SHA1 index at `data/inventory/sha1_index.json` records every verifi
 | `/assets/indexes/{id}.json` | Asset index |
 | `/assets/objects/{aa}/{hash}` | Asset object |
 | `/p2p/inventory` | Peer inventory for federation |
+| `/p2p/inventory/summary` | Version, library and asset counts plus total bytes |
 | `/stats` | Metrics (when enabled) |
 | `/health` | Health check |
 

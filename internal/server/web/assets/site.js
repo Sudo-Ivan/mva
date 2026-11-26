@@ -52,7 +52,7 @@
   });
 
   function formatBytes(n) {
-    if (typeof n !== 'number' || n < 0) { return '—'; }
+    if (typeof n !== 'number' || n < 0) { return 'n/a'; }
     var units = ['B', 'KB', 'MB', 'GB', 'TB'];
     var v = n, u = 0;
     while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
@@ -61,7 +61,7 @@
   }
 
   function formatDate(iso) {
-    return typeof iso === 'string' && iso.length >= 10 ? iso.slice(0, 10) : '—';
+    return typeof iso === 'string' && iso.length >= 10 ? iso.slice(0, 10) : 'n/a';
   }
 
   function typeClass(t) {
@@ -77,25 +77,25 @@
     });
   }
 
-  fetch('/p2p/inventory').then(function (r) {
-    return r.ok ? r.json() : null;
-  }).then(function (inv) {
-    if (!inv) { return; }
-    if (Array.isArray(inv.versions)) {
-      document.querySelectorAll('[data-version-count]').forEach(function (el) {
-        el.textContent = String(inv.versions.length);
-      });
-    }
-    if (typeof inv.bytes === 'number' && inv.bytes > 0) {
-      var text = ' \u00b7 ' + formatBytes(inv.bytes);
-      document.querySelectorAll('[data-archive-size]').forEach(function (el) {
-        el.textContent = text;
-      });
-    }
-    // The versions page stats sheet reads the same numbers under its own ids.
-    var vb = document.getElementById('stat-bytes');
-    if (vb && typeof inv.bytes === 'number') { vb.textContent = formatBytes(inv.bytes); }
-  }).catch(function () {});
+  function loadInventorySummary() {
+    var countEls = document.querySelectorAll('[data-version-count]');
+    var sizeEls = document.querySelectorAll('[data-archive-size]');
+    var statBytes = document.getElementById('stat-bytes');
+    if (!countEls.length && !sizeEls.length && !statBytes) { return; }
+
+    fetchJSON('/p2p/inventory/summary').then(function (inv) {
+      if (typeof inv.versions === 'number') {
+        countEls.forEach(function (el) { el.textContent = String(inv.versions); });
+      }
+      if (typeof inv.bytes === 'number' && inv.bytes > 0) {
+        var size = formatBytes(inv.bytes);
+        sizeEls.forEach(function (el) { el.textContent = ' \u00b7 ' + size; });
+        if (statBytes) { statBytes.textContent = size; }
+      }
+    }).catch(function () {});
+  }
+
+  loadInventorySummary();
 
   var railLinks = Array.prototype.slice.call(document.querySelectorAll('.doc-rail a[href^="#"]'));
   if (railLinks.length && 'IntersectionObserver' in window) {
@@ -294,7 +294,7 @@
       assets.textContent = formatBytes(ai.totalSize) + ' · not archived';
       assets.title = 'Asset index ' + ai.id + ' is not on this mirror';
     } else {
-      assets.textContent = '—';
+      assets.textContent = 'n/a';
     }
 
     var java = tr.querySelector('.ver-java');
@@ -306,7 +306,7 @@
       java.textContent = '';
       java.appendChild(ja);
     } else {
-      java.textContent = '—';
+      java.textContent = 'n/a';
     }
 
     tr.querySelector('.ver-json').href = v.version_json || '';
@@ -319,7 +319,7 @@
     if (!artifact || !artifact.url) {
       var none = document.createElement('span');
       none.className = 'dl is-none';
-      none.textContent = '—';
+      none.textContent = 'n/a';
       none.title = 'No ' + kind + ' jar is declared for this version';
       td.appendChild(none);
       return;
@@ -342,7 +342,7 @@
     } else {
       node.classList.add('is-fetch');
       flag.textContent = 'upstream';
-      node.title = 'Not archived yet — fetched from Mojang on first request';
+      node.title = 'Not archived yet. The first request fetches it from Mojang.';
     }
     td.appendChild(node);
   }
@@ -362,7 +362,7 @@
     btn.type = 'button';
     btn.textContent = 'Retry';
     btn.addEventListener('click', function () {
-      wrap.textContent = 'Reading the shelf…';
+      wrap.textContent = 'Loading versions...';
       wrap.className = 'ver-state';
       loadCatalog();
     });
@@ -370,9 +370,9 @@
     td.appendChild(wrap);
     tr.appendChild(td);
     tbody.appendChild(tr);
-    setText('stat-versions', '—');
-    setText('stat-client', '—');
-    setText('stat-server', '—');
+    setText('stat-versions', 'n/a');
+    setText('stat-client', 'n/a');
+    setText('stat-server', 'n/a');
   }
 
   /* ---- detail view ---- */
@@ -480,48 +480,48 @@
     if (!artifact || !artifact.url) {
       stateEl.textContent = 'not published';
       stateEl.classList.add('is-none');
-      sizeEl.textContent = '—';
-      hashEl.textContent = '—';
+      sizeEl.textContent = 'n/a';
+      hashEl.textContent = 'n/a';
       copyBtn.hidden = true;
       dlBtn.textContent = 'Unavailable';
       dlBtn.removeAttribute('href');
       dlBtn.setAttribute('aria-disabled', 'true');
-      noteEl.textContent = 'This version’s JSON declares no ' + kindKey + ' download.';
+      noteEl.textContent = 'No ' + kindKey + ' download is declared in this version JSON.';
       card.classList.add('is-empty');
     } else if (artifact.archived) {
       stateEl.textContent = 'on mirror';
       stateEl.classList.add('is-archived');
       sizeEl.textContent = formatBytes(artifact.size);
-      hashEl.textContent = artifact.sha1 || '—';
+      hashEl.textContent = artifact.sha1 || 'n/a';
       if (artifact.sha1) { copyBtn.setAttribute('data-copy-value', artifact.sha1); }
       else { copyBtn.hidden = true; }
       dlBtn.textContent = 'Download ' + kindKey + ' jar';
       dlBtn.href = artifact.url;
       dlBtn.setAttribute('download', '');
-      noteEl.textContent = 'Bytes are on this mirror; SHA-1 is re-checked on serve.';
+      noteEl.textContent = 'Bytes are on this mirror. SHA-1 is re-checked on serve.';
     } else if (!state.proxyOnMiss) {
       stateEl.textContent = 'not archived';
       stateEl.classList.add('is-fetch');
       sizeEl.textContent = formatBytes(artifact.size);
-      hashEl.textContent = artifact.sha1 || '—';
+      hashEl.textContent = artifact.sha1 || 'n/a';
       if (artifact.sha1) { copyBtn.setAttribute('data-copy-value', artifact.sha1); }
       else { copyBtn.hidden = true; }
       dlBtn.textContent = 'Unavailable';
       dlBtn.removeAttribute('href');
       dlBtn.setAttribute('aria-disabled', 'true');
-      noteEl.textContent = 'Declared by Mojang’s version JSON but not on this mirror, and proxy_on_miss is off — the jar URL would 404.';
+      noteEl.textContent = 'Mojang declares this file in the version JSON but it is not on this mirror, and proxy_on_miss is off. The jar URL would 404.';
       card.classList.add('is-empty');
     } else {
       stateEl.textContent = 'upstream fetch';
       stateEl.classList.add('is-fetch');
       sizeEl.textContent = formatBytes(artifact.size);
-      hashEl.textContent = artifact.sha1 || '—';
+      hashEl.textContent = artifact.sha1 || 'n/a';
       if (artifact.sha1) { copyBtn.setAttribute('data-copy-value', artifact.sha1); }
       else { copyBtn.hidden = true; }
       dlBtn.textContent = 'Download ' + kindKey + ' jar';
       dlBtn.href = artifact.url;
       dlBtn.setAttribute('download', '');
-      noteEl.textContent = 'Not archived yet — the first request fetches it from Mojang and caches the result.';
+      noteEl.textContent = 'Not archived yet. The first request fetches it from Mojang and caches the result.';
     }
     bay.appendChild(card);
   }
@@ -543,7 +543,7 @@
         linkTd.textContent = '';
         linkTd.appendChild(a);
       } else {
-        linkTd.textContent = '—';
+        linkTd.textContent = 'n/a';
       }
       tbody.appendChild(tr);
     }
@@ -575,9 +575,9 @@
   function fillIntegrity(tbody) {
     if (!tbody) { return; }
     var rows = [
-      ['SHA-1 in the version JSON', 'Jar downloads verify against the sha1 values shown above — the same digests Mojang publishes.'],
-      ['SHA-1 in asset paths', 'Every asset object URL carries its hash; the mirror re-checks objects on serve.'],
-      ['Range requests', 'Jars and indexes accept Range — resume or parallel-fetch large downloads safely.']
+      ['SHA-1 in the version JSON', 'Jar downloads verify against the sha1 values shown above, the same digests Mojang publishes.'],
+      ['SHA-1 in asset paths', 'Every asset object URL carries its hash. The mirror re-checks objects on serve.'],
+      ['Range requests', 'Jars and indexes accept Range requests, so large downloads can resume or fetch in parallel.']
     ];
     rows.forEach(function (pair) {
       var div = document.createElement('div');

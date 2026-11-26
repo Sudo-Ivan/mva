@@ -17,7 +17,7 @@ Discover at runtime:
 GET /
 ```
 
-`GET /` negotiates on `Accept`: browsers (`Accept: text/html`) receive the embedded site; other clients receive the JSON index below. `GET /?json` forces the JSON response from any client. `GET /docs` serves the API reference page.
+`GET /` negotiates on `Accept`: browsers (`Accept: text/html`) receive the embedded site. Other clients receive the JSON index below. `GET /?json` forces the JSON response from any client. `GET /docs` serves the API reference page.
 
 ```json
 {
@@ -51,7 +51,7 @@ Use `public_url` from this response (or your configured mirror URL) when rewriti
 |------|--------|
 | Methods | **GET** and **HEAD** only for game content. Other methods return **connection close** (no HTTP body) when `block_scanners` is on (default). Exception: `/p2p/` may use other methods. |
 | Range | `Accept-Ranges: bytes` on file responses. Send `Range: bytes=start-end` for partial content (**206**). |
-| Paths | `..`, backslashes, and unknown paths → **404**. Scanner probe paths → **TCP close** (not 404). |
+| Paths | `..`, backslashes, and unknown paths return **404**. Scanner probe paths close TCP (not 404). |
 | Content | Version/manifest JSON: `application/json`. Jars/libs/assets: binary streams. |
 | Compression | JSON responses support `Accept-Encoding: gzip` (with `Vary` and `Content-Encoding` set). Range requests are always served uncompressed. |
 | Manifest scope | `version_manifest_v2.json` lists **only versions present on this mirror**, not all Mojang releases. |
@@ -65,10 +65,10 @@ Typical launcher flow using standard Mojang semantics:
 2. Pick version id from manifest.versions[]
 3. GET {BASE}/versions/{id}.json          (URL also in manifest entry)
 4. From version JSON:
-   - downloads.client.url  → GET client jar
-   - downloads.server.url  → GET server jar (optional)
-   - libraries[].downloads → GET each library artifact URL
-   - assetIndex.url        → GET asset index JSON
+   - downloads.client.url: GET client jar
+   - downloads.server.url: GET server jar (optional)
+   - libraries[].downloads: GET each library artifact URL
+   - assetIndex.url: GET asset index JSON
 5. For each object in asset index:
    GET {BASE}/assets/objects/{first2}/{sha1}
 ```
@@ -135,7 +135,7 @@ GET /assets/objects/{prefix}/{hash}
 - `{prefix}` = first two hex chars of SHA-1
 - `{hash}` = full SHA-1 (40 hex chars)
 
-Asset objects are **verified server-side** against `{hash}` before serve. If corrupt → **404** (or upstream fetch when `proxy_on_miss` is on).
+Asset objects are **verified server-side** against `{hash}` before serve. If corrupt, the mirror returns **404** (or fetches upstream when `proxy_on_miss` is on).
 
 ### Version ID aliases
 
@@ -249,7 +249,7 @@ Verify **SHA-256** and **size** from the manifest before extracting. Server re-c
 **Suggested launcher logic:**
 
 ```
-1. GET /java/{mcVersion} → major_version, optional temurin path
+1. GET /java/{mcVersion} returns major_version and an optional temurin path
 2. If temurin present:
      GET /java/temurin/{major}
      Pick platforms[] entry where runtimeOS matches host
@@ -328,10 +328,10 @@ Clients should always verify. The mirror also verifies on serve for assets and T
 
 | Setting | Client impact |
 |---------|---------------|
-| `proxy_on_miss` | **404** may become a one-time upstream fetch; file may appear later if cached |
+| `proxy_on_miss` | **404** may become a one-time upstream fetch. The file may appear later if cached |
 | `trust_proxy` | JSON URLs use `X-Forwarded-Proto` + `X-Forwarded-Host` when present |
 | `stats.enabled` | Exposes `GET /stats` (JSON metrics) |
-| `block_scanners` | Non-GET/HEAD (except `/p2p/`) → connection drop |
+| `block_scanners` | Non-GET/HEAD (except `/p2p/`) drops the connection |
 
 ## Operations endpoints
 
@@ -383,11 +383,29 @@ GET /p2p/inventory
 {
   "versions": ["1.21.1", "1.20.1"],
   "libraries": ["com/mojang/authlib/..."],
-  "assets": ["abcdef0123..."]
+  "assets": ["abcdef0123..."],
+  "bytes": 123456789
 }
 ```
 
 Used by other `mva` archivers, not typical launchers.
+
+### P2P inventory summary
+
+```http
+GET /p2p/inventory/summary
+```
+
+```json
+{
+  "versions": 85,
+  "libraries": 1240,
+  "assets": 5312,
+  "bytes": 123456789
+}
+```
+
+Returns counts and total bytes without the full file lists. The web UI uses this for its archive stats.
 
 ## Upstream mapping cheat sheet
 
@@ -407,15 +425,15 @@ Used by other `mva` archivers, not typical launchers.
 
 When implementing a new client against this API:
 
-1. Set `{BASE}` once; fetch `GET /` to confirm `public_url`.
-2. Use manifest → version JSON → artifact URLs **as returned** (already rewritten).
+1. Set `{BASE}` once. Fetch `GET /` to confirm `public_url`.
+2. Use the manifest, then version JSON, then artifact URLs **as returned** (already rewritten).
 3. Honor **SHA-1** for game files, **SHA-256** for Temurin.
 4. Support **HTTP Range** for large jar downloads and resume.
 5. Handle **404** as "not on this mirror" (version not archived or file missing).
 6. Use `/java/{mcVersion}` + `/java/temurin/{major}` for auto-Java when Temurin is hosted.
-7. For Fabric, swap only the meta/maven host prefixes; JSON shapes are unchanged.
-8. Apply version aliases (`1.5.0` → `1.5`) when resolving user input.
-9. Do not send POST/PUT to game paths; use GET/HEAD only.
+7. For Fabric, swap only the meta/maven host prefixes. JSON shapes are unchanged.
+8. Apply version aliases (`1.5.0` becomes `1.5`) when resolving user input.
+9. Do not send POST/PUT to game paths. Use GET/HEAD only.
 
 ## Related CLI (not HTTP)
 

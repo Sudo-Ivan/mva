@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Versions · minecraft-version-archive</title>
-<meta name="description" content="Browse every Minecraft version this mirror archives — client and server jars, asset indexes and Java requirements, with direct download links.">
+<meta name="description" content="Browse every Minecraft version this mirror archives. Client and server jars, asset indexes and Java requirements, with direct download links.">
 <link rel="preload" href="/web/fonts/chivo-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/web/fonts/chivo-latin-900-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/web/site.css">
@@ -31,10 +31,10 @@
     <div class="ver-hero__grid">
       <div class="ver-hero__text">
         <h1>Version archive</h1>
-        <p class="lead">Client and server jars for every Minecraft version this mirror holds. Pick a cartridge, verify the hash, download.</p>
+        <p class="lead">Client and server jars for every Minecraft version this mirror holds. Pick a version, verify the hash, download.</p>
       </div>
       <figure class="sheet ver-stats">
-        <figcaption class="sheet__title"><span>SHELF STATS</span><span id="ver-stats-asof">…</span></figcaption>
+        <figcaption class="sheet__title"><span>ARCHIVE STATS</span><span id="ver-stats-asof">…</span></figcaption>
         <dl class="ver-stats__list">
           <div><dt>Versions held</dt><dd class="num" id="stat-versions">…</dd></div>
           <div><dt>Client jars</dt><dd class="num" id="stat-client">…</dd></div>
@@ -83,12 +83,12 @@
               </tr>
             </thead>
             <tbody id="catalog-body">
-              <tr class="ver-state-row"><td colspan="8"><span class="ver-state" id="ver-loading">Reading the shelf…</span></td></tr>
+              <tr class="ver-state-row"><td colspan="8"><span class="ver-state" id="ver-loading">Loading versions...</span></td></tr>
             </tbody>
           </table>
         </div>
         <div class="ver-foot">
-          <span class="ver-legend">Sizes are Mojang’s declared bytes. A muted size fetches from upstream on first request.</span>
+          <span class="ver-legend">Sizes are Mojang's declared bytes. A muted size fetches from upstream on first request.</span>
           <a href="/versions?json">JSON catalog</a>
         </div>
       </figure>
@@ -114,7 +114,7 @@
       <a href="/mc/game/version_manifest_v2.json">Manifest</a>
       <a href="/health">Health</a>
     </nav>
-    <p class="footer__colophon">Fonts vendored, no CDN. Apache-2.0. Unofficial mirror; Minecraft is a Mojang Synergies AB trademark.</p>
+    <p class="footer__colophon">Apache-2.0. Unofficial mirror. Minecraft is a Mojang Synergies AB trademark.</p>
   </div>
 </footer>
 
@@ -140,7 +140,7 @@
 
 <template id="tpl-detail">
   <div class="ver-detail">
-  <nav class="ver-back" aria-label="Breadcrumb"><a href="/versions">&larr; version register</a></nav>
+  <nav class="ver-back" aria-label="Breadcrumb"><a href="/versions">Back to versions</a></nav>
   <header class="ver-detail__head">
     <div class="ver-detail__idwrap">
       <h1 class="ver-detail__id num"></h1>
@@ -155,10 +155,10 @@
     </div>
   </header>
 
-  <h2 class="section-head">Download bay</h2>
+  <h2 class="section-head">Downloads</h2>
   <div class="ver-bay" id="detail-bay"></div>
 
-  <h2 class="section-head">Manifest files</h2>
+  <h2 class="section-head">Files</h2>
   <div class="spec-wrap">
     <table class="spec">
       <thead><tr><th scope="col">File</th><th scope="col">Detail</th><th scope="col">Link</th></tr></thead>

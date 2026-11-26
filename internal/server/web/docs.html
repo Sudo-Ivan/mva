@@ -111,14 +111,14 @@ Accept: application/json
     "java":    { "major": 21, "component": "java-runtime-delta",
                  "temurin": "/java/temurin/21" },
     "libraries": 97 } ] }</pre>
-            <figcaption>One row per versions/*.json on disk, newest release first. URLs are root-relative; prepend public_url.</figcaption>
+            <figcaption>One row per versions/*.json on disk, newest release first. URLs are root-relative. Prepend public_url.</figcaption>
           </figure>
           <div class="spec-wrap">
             <table class="spec">
               <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead>
               <tbody>
                 <tr><td class="mono">archived</td><td>True when the file is already on this mirror. False means the jar URL still resolves through proxy_on_miss, or 404s without it.</td></tr>
-                <tr><td class="mono">sha1, size</td><td>Mojang’s declared digest and byte count from the version JSON — verify downloads against them.</td></tr>
+                <tr><td class="mono">sha1, size</td><td>Mojang's declared digest and byte count from the version JSON. Verify downloads against them.</td></tr>
                 <tr><td class="mono">asset_index.totalSize</td><td>Uncompressed size of every object the index references.</td></tr>
                 <tr><td class="mono">java.temurin</td><td>Present only when that Java major is archived under /java/temurin/.</td></tr>
                 <tr><td class="mono">fabric_loader</td><td>Present when Fabric loader meta for this MC version is archived.</td></tr>
@@ -137,7 +137,7 @@ Accept: application/json
               <tbody>
                 <tr><th scope="row">Methods</th><td>GET and HEAD only. Other methods drop the connection.</td></tr>
                 <tr><th scope="row">Range</th><td><code>Range: bytes=start-end</code> returns a 206 partial body.</td></tr>
-                <tr><th scope="row">Paths</th><td>Unknown or traversal paths return 404; scanner probes drop.</td></tr>
+                <tr><th scope="row">Paths</th><td>Unknown or traversal paths return 404. Scanner probes drop.</td></tr>
                 <tr><th scope="row">Content</th><td>JSON for metadata, binary for files.</td></tr>
                 <tr><th scope="row">Compression</th><td>JSON honours <code>Accept-Encoding: gzip</code>.</td></tr>
                 <tr><th scope="row">Manifest scope</th><td>The manifest lists only versions held on this mirror.</td></tr>
@@ -166,7 +166,7 @@ Accept: application/json
 
         <section id="rewrites" aria-labelledby="h-rewrites">
           <h2 id="h-rewrites">Rewritten fields</h2>
-          <p>Mojang’s version JSON is served with URLs pointing at this host. Original <code>sha1</code> and <code>size</code> fields are preserved; verify downloads against them.</p>
+          <p>Mojang's version JSON is served with URLs pointing at this host. Original <code>sha1</code> and <code>size</code> fields are preserved. Verify downloads against them.</p>
           <div class="spec-wrap">
             <table class="spec">
               <thead><tr><th scope="col">Field</th><th scope="col">Rewritten to</th></tr></thead>
@@ -217,7 +217,7 @@ Accept: application/json
 
         <section id="temurin" aria-labelledby="h-temurin">
           <h2 id="h-temurin">Temurin</h2>
-          <p>Optional; requires the operator to run <code>mva archive-java</code>. Not every platform and major pair exists upstream.</p>
+          <p>Optional. Requires the operator to run <code>mva archive-java</code>. Not every platform and major pair exists upstream.</p>
           <h3>List archived majors</h3>
           <figure class="fig"><pre>GET /java/temurin
 
@@ -259,7 +259,7 @@ Accept: application/json
 
         <section id="fabric" aria-labelledby="h-fabric">
           <h2 id="h-fabric">Fabric</h2>
-          <p>Swap the meta and maven host prefixes; the JSON shapes are unchanged.</p>
+          <p>Swap the meta and maven host prefixes. The JSON shapes are unchanged.</p>
           <figure class="fig">
             <pre>GET /fabric/v2/versions/loader
 GET /fabric/v2/versions/loader/{gameVersion}
@@ -289,8 +289,8 @@ GET /meta/v1/net.fabricmc.intermediary/index.json  and /{mcVersion}.json</pre>
             <table class="spec">
               <thead><tr><th scope="col">Component</th><th scope="col">Source</th></tr></thead>
               <tbody>
-                <tr><td class="mono">net.minecraft</td><td>Converted from archived Mojang version JSONs; mainJar, assetIndex, libraries, compatibleJavaMajors and traits derived per version.</td></tr>
-                <tr><td class="mono">org.lwjgl3, org.lwjgl</td><td>Generated from LWJGL entries in archived version JSONs; natives flatten into artifact-natives-{os} names.</td></tr>
+                <tr><td class="mono">net.minecraft</td><td>Converted from archived Mojang version JSONs. mainJar, assetIndex, libraries, compatibleJavaMajors and traits are derived per version.</td></tr>
+                <tr><td class="mono">org.lwjgl3, org.lwjgl</td><td>Generated from LWJGL entries in archived version JSONs. Natives flatten into artifact-natives-{os} names.</td></tr>
                 <tr><td class="mono">net.minecraft.java</td><td>Generated from archived Temurin manifests with sha256 checksums and Prism-style runtimeOS values.</td></tr>
                 <tr><td class="mono">net.fabricmc.*</td><td>Generated from archived Fabric meta.</td></tr>
               </tbody>
@@ -311,7 +311,7 @@ GET /meta/v1/net.fabricmc.intermediary/index.json  and /{mcVersion}.json</pre>
               </tbody>
             </table>
           </div>
-          <p>Clients should always verify. The mirror also verifies on serve for assets and Temurin; a corrupt object returns 404, or an upstream fetch when proxy_on_miss is on.</p>
+          <p>Clients should always verify. The mirror also verifies on serve for assets and Temurin. A corrupt object returns 404, or an upstream fetch when proxy_on_miss is on.</p>
         </section>
 
         <section id="behaviors" aria-labelledby="h-behaviors">
@@ -320,7 +320,7 @@ GET /meta/v1/net.fabricmc.intermediary/index.json  and /{mcVersion}.json</pre>
             <table class="spec">
               <thead><tr><th scope="col">Setting</th><th scope="col">Client impact</th></tr></thead>
               <tbody>
-                <tr><td class="mono">proxy_on_miss</td><td>A 404 may become a one-time upstream fetch; the file can appear later if cached.</td></tr>
+                <tr><td class="mono">proxy_on_miss</td><td>A 404 may become a one-time upstream fetch. The file can appear later if cached.</td></tr>
                 <tr><td class="mono">trust_proxy</td><td>JSON URLs use X-Forwarded-Proto and X-Forwarded-Host when present.</td></tr>
                 <tr><td class="mono">stats.enabled</td><td>Exposes GET /stats.</td></tr>
                 <tr><td class="mono">block_scanners</td><td>Non-GET/HEAD requests outside /p2p/ drop the connection.</td></tr>
@@ -338,6 +338,7 @@ GET /meta/v1/net.fabricmc.intermediary/index.json  and /{mcVersion}.json</pre>
                 <tr><td class="mono">GET /health</td><td class="mono">{ "status": "ok" }</td></tr>
                 <tr><td class="mono">GET /stats</td><td>Uptime, requests, bytes, cache hit rate, versions stored. Requires stats.enabled.</td></tr>
                 <tr><td class="mono">GET /p2p/inventory</td><td>Versions, libraries and assets held, for peer federation. Not for launchers.</td></tr>
+                <tr><td class="mono">GET /p2p/inventory/summary</td><td>Counts and total bytes held. Small enough for status pages.</td></tr>
               </tbody>
             </table>
           </div>
@@ -366,8 +367,8 @@ GET /meta/v1/net.fabricmc.intermediary/index.json  and /{mcVersion}.json</pre>
         <section id="checklist" aria-labelledby="h-checklist">
           <h2 id="h-checklist">Checklist</h2>
           <ol class="list doc-check">
-            <li>Set {BASE}; confirm public_url at GET /.</li>
-            <li>Use returned URLs as-is; they are rewritten.</li>
+            <li>Set {BASE}. Confirm public_url at GET /.</li>
+            <li>Use returned URLs as-is. They are rewritten.</li>
             <li>Verify SHA-1 on game files, SHA-256 on Temurin.</li>
             <li>Support Range for large jars and resume.</li>
             <li>404 means not archived on this mirror.</li>
@@ -393,7 +394,7 @@ GET /meta/v1/net.fabricmc.intermediary/index.json  and /{mcVersion}.json</pre>
       <a href="/mc/game/version_manifest_v2.json">Manifest</a>
       <a href="/health">Health</a>
     </nav>
-    <p class="footer__colophon">Fonts vendored, no CDN. Apache-2.0. Unofficial mirror; Minecraft is a Mojang Synergies AB trademark.</p>
+    <p class="footer__colophon">Apache-2.0. Unofficial mirror. Minecraft is a Mojang Synergies AB trademark.</p>
   </div>
 </footer>
 

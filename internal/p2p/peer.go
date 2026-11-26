@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
 	"time"
@@ -119,10 +118,4 @@ func (r *Registry) FetchAssetObject(ctx context.Context, peer *Peer, hash, dest 
 		return fmt.Errorf("invalid asset hash")
 	}
 	return peer.Download(ctx, "/assets/objects/"+hash[:2]+"/"+hash, dest)
-}
-
-func WriteInventory(w io.Writer, inv Inventory) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(inv)
 }
