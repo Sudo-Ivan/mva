@@ -62,3 +62,28 @@ func TestVerifyFileSkipsWhenUnknown(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestValidSHA1Hex(t *testing.T) {
+	valid := []string{
+		"da39a3ee5e6b4b0d3255bfef95601890afd80709",
+		"DA39A3EE5E6B4B0D3255BFEF95601890AFD80709",
+	}
+	for _, s := range valid {
+		if !ValidSHA1Hex(s) {
+			t.Errorf("ValidSHA1Hex(%q) = false", s)
+		}
+	}
+	invalid := []string{
+		"",
+		"da39a3ee5e6b4b0d3255bfef95601890afd8070",
+		"da39a3ee5e6b4b0d3255bfef95601890afd807090",
+		"../../../etc/passwd",
+		"da39a3ee5e6b4b0d3255bfef95601890afd8070g",
+		"da39a3ee5e6b4b0d3255bfef95601890afd8070/",
+	}
+	for _, s := range invalid {
+		if ValidSHA1Hex(s) {
+			t.Errorf("ValidSHA1Hex(%q) = true", s)
+		}
+	}
+}

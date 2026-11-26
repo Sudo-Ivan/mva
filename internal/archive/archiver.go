@@ -491,6 +491,11 @@ func (a *Archiver) archiveAssets(ctx context.Context, v *mojang.Version, prog *P
 	var firstErr error
 
 	for _, obj := range idx.Objects {
+		if !integrity.ValidSHA1Hex(obj.Hash) {
+			a.log.Warn("skipping asset with invalid hash", "hash", obj.Hash)
+			prog.TaskDone(0)
+			continue
+		}
 		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()

@@ -134,3 +134,19 @@ func equalHex(a, b string) bool {
 func FromArtifact(sha1 string, size int64) Spec {
 	return Spec{SHA1: sha1, Size: size}
 }
+
+// ValidSHA1Hex reports whether s is a 40 character hex SHA-1 digest. Upstream
+// metadata supplies these values, and they become path segments, so anything
+// else is rejected before it reaches the filesystem.
+func ValidSHA1Hex(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
+}
