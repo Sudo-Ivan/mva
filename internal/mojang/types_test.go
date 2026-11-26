@@ -190,3 +190,20 @@ func TestLiveMojangLibraryDownload(t *testing.T) {
 		t.Fatalf("library too small: %d bytes", len(req))
 	}
 }
+
+func FuzzRewriteVersionJSON(f *testing.F) {
+	f.Add([]byte(`{"id":"1.0"}`))
+	f.Add([]byte(`{"downloads":{"client":{"url":"x"}},"assetIndex":{"id":"1"},"libraries":[{"downloads":{"artifact":{"url":"https://libraries.minecraft.net/a.jar"}}}]}`))
+	f.Add([]byte(`{"downloads":null,"assetIndex":[],"libraries":{}}`))
+	f.Add([]byte(`[]`))
+	f.Add([]byte(``))
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		out, err := RewriteVersionJSON(raw, "https://mirror.test", "1.0")
+		if err != nil {
+			return
+		}
+		if !json.Valid(out) {
+			t.Fatalf("output is not valid JSON: %q", out)
+		}
+	})
+}

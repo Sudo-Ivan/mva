@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"minecraft-version-archive/internal/constants"
@@ -249,4 +250,34 @@ func TestImportZipRejectsOversizedMiscEntry(t *testing.T) {
 	if _, err := ImportZip(dest, zipPath, false); err == nil {
 		t.Fatal("expected oversize misc entry to be rejected")
 	}
+}
+
+func FuzzSafeZipTarget(f *testing.F) {
+	for _, name := range []string{
+		"a.txt",
+		"a/b/c.txt",
+		"../escape.txt",
+		"..",
+		".",
+		"/abs.txt",
+		"a/../../b.txt",
+		`..\escape.txt`,
+		"",
+	} {
+		f.Add(name)
+	}
+	dest := filepath.Join(string(filepath.Separator), "tmp", "dest")
+	f.Fuzz(func(t *testing.T, name string) {
+		target, err := safeZipTarget(dest, name)
+		if err != nil {
+			return
+		}
+		rel, relErr := filepath.Rel(dest, target)
+		if relErr != nil {
+			t.Fatalf("%q: %v", name, relErr)
+		}
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			t.Fatalf("%q resolved outside dest: %q", name, rel)
+		}
+	})
 }
