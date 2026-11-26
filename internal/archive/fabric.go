@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"minecraft-version-archive/internal/constants"
 	"minecraft-version-archive/internal/fabric"
@@ -33,23 +35,20 @@ func (a *Archiver) RunFabric(ctx context.Context, opts FabricOptions) error {
 	if len(mcVersions) == 1 {
 		a.log.Info("fabric archiving version", "version", mcVersions[0])
 	} else {
-		a.log.Info("fabric archiving versions", "versions", mcVersions)
+		a.log.Info("fabric archiving versions", "versions", len(mcVersions))
 	}
 
-	loaderTotal := 0
-	for _, mc := range mcVersions {
-		n, err := a.countFabricLoaders(ctx, mc, opts)
-		if err != nil {
-			return err
-		}
-		loaderTotal += n
+	workers := a.cfg.Workers
+	if workers < 1 {
+		workers = 1
 	}
-
+	if workers > len(mcVersions) {
+		workers = len(mcVersions)
+	}
 	a.log.Info("fabric archive plan",
 		"minecraft", len(mcVersions),
-		"loaders", loaderTotal,
 		"all_loaders", opts.AllLoaders,
-		"workers", a.cfg.Workers,
+		"workers", workers,
 	)
 
 	prog := NewProgress(len(mcVersions), a.log)
@@ -62,21 +61,49 @@ func (a *Archiver) RunFabric(ctx context.Context, opts FabricOptions) error {
 		return err
 	}
 
+	jobs := make(chan string, len(mcVersions))
 	for _, mc := range mcVersions {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		prog.BeginVersion(mc)
-		err := a.archiveFabricMC(ctx, mc, opts, prog)
-		prog.EndVersion(mc, err == nil)
-		if err != nil {
-			prog.logStatus(true)
-			return fmt.Errorf("%s: %w", mc, err)
-		}
+		jobs <- mc
 	}
+	close(jobs)
 
+	var loaderTotal atomic.Int64
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(mcVersions))
+	for worker := 0; worker < workers; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for mc := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				prog.BeginVersion(mc)
+				count, err := a.archiveFabricMC(ctx, mc, opts, prog)
+				prog.EndVersion(mc, err == nil)
+				if err != nil {
+					errCh <- fmt.Errorf("%s: %w", mc, err)
+					continue
+				}
+				loaderTotal.Add(int64(count))
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+
+	var firstErr error
+	for err := range errCh {
+		if firstErr == nil {
+			firstErr = err
+		}
+		a.log.Error("fabric archive failed", "err", err)
+	}
 	prog.logStatus(true)
-	a.log.Info("fabric archive complete", "minecraft", len(mcVersions), "loaders", loaderTotal)
+	if firstErr != nil {
+		return firstErr
+	}
+	a.log.Info("fabric archive complete", "minecraft", len(mcVersions), "loaders", loaderTotal.Load())
 	return nil
 }
 
@@ -187,33 +214,33 @@ func (a *Archiver) archiveFabricIndex(ctx context.Context, rel string, prog *Pro
 	return a.archiveFabricMeta(ctx, rel, prog)
 }
 
-func (a *Archiver) archiveFabricMC(ctx context.Context, mc string, opts FabricOptions, prog *Progress) error {
+func (a *Archiver) archiveFabricMC(ctx context.Context, mc string, opts FabricOptions, prog *Progress) (int, error) {
 	enc := fabric.EncodeGameVersion(mc)
 	listRel := "v2/versions/loader/" + enc
 	listData, err := a.fetchMeta(ctx, listRel, prog)
 	if err != nil {
-		return fmt.Errorf("loader list: %w", err)
+		return 0, fmt.Errorf("loader list: %w", err)
 	}
 
 	pairs, err := fabric.ParseLoaderPairs(listData)
 	if err != nil {
-		return fmt.Errorf("parse loader list: %w", err)
+		return 0, fmt.Errorf("parse loader list: %w", err)
 	}
 	if len(pairs) == 0 {
 		a.log.Info("fabric skip", "minecraft", mc, "reason", "no compatible loaders")
-		return nil
+		return 0, nil
 	}
 
 	loaders := selectFabricLoaders(pairs, opts)
 	for _, loader := range loaders {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return 0, ctx.Err()
 		}
 		if err := a.archiveFabricLoader(ctx, mc, enc, loader, prog); err != nil {
-			return err
+			return 0, err
 		}
 	}
-	return nil
+	return len(loaders), nil
 }
 
 func selectFabricLoaders(pairs []fabric.LoaderPair, opts FabricOptions) []string {
@@ -291,6 +318,8 @@ func (a *Archiver) archiveFabricMeta(ctx context.Context, rel string, prog *Prog
 }
 
 func (a *Archiver) archiveFabricLibrary(ctx context.Context, lib fabric.Library, prog *Progress) error {
+	a.fabricArtifactMu.Lock()
+	defer a.fabricArtifactMu.Unlock()
 	if lib.Name == "" {
 		return nil
 	}
@@ -325,6 +354,8 @@ func (a *Archiver) archiveFabricLibrary(ctx context.Context, lib fabric.Library,
 }
 
 func (a *Archiver) archiveFabricLoaderJSON(ctx context.Context, loaderVersion string, prog *Progress) error {
+	a.fabricArtifactMu.Lock()
+	defer a.fabricArtifactMu.Unlock()
 	coord := "net.fabricmc:fabric-loader:" + loaderVersion + ":json"
 	rel := fabric.MavenRelPath(coord)
 	if rel == "" {

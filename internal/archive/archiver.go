@@ -33,17 +33,18 @@ type RunInfo struct {
 }
 
 type Archiver struct {
-	cfg      *config.Config
-	layout   *store.Layout
-	index    *store.HashIndex
-	mojang   *mojang.Client
-	fetch    *fetch.Client
-	peers    *p2p.Registry
-	log      *slog.Logger
-	manifest *mojang.Manifest
-	stats    *stats.Collector
-	runMu    sync.Mutex
-	lastRun  atomic.Pointer[RunInfo]
+	cfg              *config.Config
+	layout           *store.Layout
+	index            *store.HashIndex
+	mojang           *mojang.Client
+	fetch            *fetch.Client
+	peers            *p2p.Registry
+	log              *slog.Logger
+	manifest         *mojang.Manifest
+	stats            *stats.Collector
+	runMu            sync.Mutex
+	fabricArtifactMu sync.Mutex
+	lastRun          atomic.Pointer[RunInfo]
 }
 
 func New(cfg *config.Config, log *slog.Logger) *Archiver {
