@@ -1,6 +1,7 @@
 package server
 
 import (
+	"math"
 	"os"
 )
 
@@ -83,7 +84,11 @@ func parseUint(s string) (int, error) {
 		if c < '0' || c > '9' {
 			return 0, os.ErrInvalid
 		}
-		n = n*10 + int(c-'0')
+		d := int(c - '0')
+		if n > (math.MaxInt-d)/10 {
+			return 0, os.ErrInvalid
+		}
+		n = n*10 + d
 	}
 	return n, nil
 }

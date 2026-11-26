@@ -61,6 +61,7 @@ type Server struct {
 	renders       sync.Map
 	metaGroup     *coalesce.Group[*metaResponse]
 	metaResp      sync.Map
+	metaCount     atomic.Uint64
 	verifyMu      sync.Mutex
 	verified      map[string]fileSig
 }
@@ -754,7 +755,7 @@ func serveBytes(w http.ResponseWriter, r *http.Request, data []byte) int64 {
 	}
 
 	start, end, ok := parseRange(rangeHeader, len(data))
-	if !ok {
+	if !ok || start < 0 || end < start || end >= len(data) {
 		h[constants.HeaderContentRange] = []string{"bytes */" + contentLengthHeader(len(data))}
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return 0

@@ -54,6 +54,10 @@ func (s *Server) servePolyMCMeta(ctx context.Context, rel, mcVersion, publicURL 
 			e.gz = gzipData(data)
 		}
 		s.metaResp.Store(key, e)
+		if s.metaCount.Add(1) > constants.MetaCacheMaxEntries {
+			s.metaResp.Clear()
+			s.metaCount.Store(0)
+		}
 		return e, nil
 	})
 	if err != nil {

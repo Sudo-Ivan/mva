@@ -33,6 +33,9 @@ func TestParseRangeInvalid(t *testing.T) {
 		"bytes=200-100",
 		"bytes=500-",
 		"bytes=0-200",
+		"bytes=-9227000000000000000",
+		"bytes=0-99999999999999999999",
+		"bytes=99999999999999999999-",
 	}
 	for _, c := range cases {
 		if _, _, ok := parseRange(c, 100); ok {
@@ -84,4 +87,35 @@ func newRangeRequest(rangeHeader string) *http.Request {
 		r.Header.Set("Range", rangeHeader)
 	}
 	return r
+}
+
+func FuzzParseRange(f *testing.F) {
+	for _, tc := range []struct {
+		header string
+		size   int
+	}{
+		{"bytes=0-", 10},
+		{"bytes=0-9", 10},
+		{"bytes=-5", 10},
+		{"bytes=5-4", 10},
+		{"bytes=0-999999999999999999999999", 10},
+		{"bytes=-999999999999999999999999", 10},
+		{"bytes=", 10},
+		{"bytes=1-2,3-4", 10},
+		{"", 0},
+	} {
+		f.Add(tc.header, tc.size)
+	}
+	f.Fuzz(func(t *testing.T, header string, size int) {
+		if size <= 0 {
+			return
+		}
+		start, end, ok := parseRange(header, size)
+		if !ok {
+			return
+		}
+		if start < 0 || end < start || end >= size {
+			t.Fatalf("parseRange(%q, %d) = %d, %d, true", header, size, start, end)
+		}
+	})
 }

@@ -113,6 +113,7 @@ const (
 	MaxGetBodyBytes        = 64 << 20
 	StatsMaxTrackedClients = 1 << 17
 	VerifyCacheMaxEntries  = 1 << 18
+	MetaCacheMaxEntries    = 1 << 12
 	StatsHistoryMaxBytes   = 1 << 20
 
 	// GzipMinBytes is the smallest JSON body worth compressing.
