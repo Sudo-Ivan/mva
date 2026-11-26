@@ -189,7 +189,7 @@ func main() {
 
 	switch cmd {
 	case "help", "-h", "--help":
-		fmt.Fprint(os.Stdout, usageText)
+		_, _ = fmt.Fprint(os.Stdout, usageText)
 		return
 	}
 
@@ -364,7 +364,7 @@ func parseArchiveArgs(cfg *config.Config, args []string) error {
 		return err
 	}
 	if showHelp {
-		fmt.Fprint(os.Stdout, archiveUsageText)
+		_, _ = fmt.Fprint(os.Stdout, archiveUsageText)
 		return errHelp
 	}
 
@@ -398,7 +398,7 @@ func parseArchiveFabricArgs(args []string) (archive.FabricOptions, error) {
 		return archive.FabricOptions{}, err
 	}
 	if showHelp {
-		fmt.Fprint(os.Stdout, archiveFabricUsageText)
+		_, _ = fmt.Fprint(os.Stdout, archiveFabricUsageText)
 		return archive.FabricOptions{}, errHelp
 	}
 	selected := append([]string{}, versions...)
@@ -421,7 +421,7 @@ func parseArchiveJavaArgs(args []string) (archive.JavaOptions, error) {
 		return archive.JavaOptions{}, err
 	}
 	if showHelp {
-		fmt.Fprint(os.Stdout, archiveJavaUsageText)
+		_, _ = fmt.Fprint(os.Stdout, archiveJavaUsageText)
 		return archive.JavaOptions{}, errHelp
 	}
 	var platList []string
@@ -461,7 +461,7 @@ func runExport(cfg *config.Config, log *slog.Logger, args []string) error {
 		return err
 	}
 	if showHelp {
-		fmt.Fprint(os.Stdout, exportUsageText)
+		_, _ = fmt.Fprint(os.Stdout, exportUsageText)
 		return errHelp
 	}
 	dest := *output
@@ -508,7 +508,7 @@ func runImport(cfg *config.Config, log *slog.Logger, args []string) error {
 		return err
 	}
 	if showHelp {
-		fmt.Fprint(os.Stdout, importUsageText)
+		_, _ = fmt.Fprint(os.Stdout, importUsageText)
 		return errHelp
 	}
 	if fs.NArg() != 1 {

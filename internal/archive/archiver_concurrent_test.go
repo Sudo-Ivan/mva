@@ -27,14 +27,14 @@ func TestArchiveMultipleVersionsConcurrent(t *testing.T) {
 				"id": id, "type": "release", "url": baseURL + "/files/" + id + ".json",
 			}
 		}
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"latest":   map[string]string{"release": "ver-a", "snapshot": "ver-a"},
 			"versions": entries,
 		})
 	})
 	for _, id := range versions {
 		mux.HandleFunc("GET /files/"+id+".json", func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(map[string]any{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id": id, "downloads": map[string]any{
 					"client": map[string]any{
 						"url": baseURL + "/files/" + id + ".jar", "size": 4,
@@ -46,11 +46,11 @@ func TestArchiveMultipleVersionsConcurrent(t *testing.T) {
 			})
 		})
 		mux.HandleFunc("GET /files/"+id+".jar", func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("jar-"))
+			_, _ = w.Write([]byte("jar-"))
 		})
 	}
 	mux.HandleFunc("GET /files/index.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"objects":{}}`))
+		_, _ = w.Write([]byte(`{"objects":{}}`))
 	})
 
 	ts := httptest.NewServer(mux)

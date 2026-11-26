@@ -12,7 +12,7 @@ import (
 // acceptsGzip reports whether the client offered gzip in Accept-Encoding.
 func acceptsGzip(r *http.Request) bool {
 	ae := r.Header.Get(constants.HeaderAcceptEncoding)
-	for _, tok := range strings.Split(ae, ",") {
+	for tok := range strings.SplitSeq(ae, ",") {
 		if strings.TrimSpace(strings.SplitN(tok, ";", 2)[0]) == "gzip" {
 			return true
 		}

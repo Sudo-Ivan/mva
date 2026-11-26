@@ -46,7 +46,7 @@ func TestExportPartialVersions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	names := make(map[string]struct{})
 	for _, f := range r.File {
 		names[f.Name] = struct{}{}

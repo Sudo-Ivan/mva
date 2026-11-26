@@ -29,7 +29,7 @@ func TestConcurrentCachedDownloads(t *testing.T) {
 					return
 				}
 				_, _ = io.Copy(io.Discard, resp.Body)
-				resp.Body.Close()
+				_ = resp.Body.Close()
 				if resp.StatusCode != http.StatusOK {
 					return
 				}

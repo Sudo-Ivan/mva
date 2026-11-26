@@ -29,7 +29,7 @@ func TestRootServesHTMLToBrowsers(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/", "text/html,application/xhtml+xml")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -55,10 +55,10 @@ func TestRootServesJSONToAPIClients(t *testing.T) {
 			PublicURL string `json:"public_url"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			t.Fatalf("accept %q: %v", accept, err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if doc.PublicURL != "http://test" {
 			t.Fatalf("accept %q: public_url = %q", accept, doc.PublicURL)
 		}
@@ -70,7 +70,7 @@ func TestRootJSONOverride(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/?json", "text/html")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
 		t.Fatalf("content-type = %q", ct)
 	}
@@ -81,7 +81,7 @@ func TestDocsPage(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/docs", "text/html")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -101,7 +101,7 @@ func TestWebAssets(t *testing.T) {
 	} {
 		resp := get(t, ts.URL+path, "")
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("%s: status = %d", path, resp.StatusCode)
 		}
@@ -114,7 +114,7 @@ func TestWebAssets(t *testing.T) {
 	}
 
 	resp := get(t, ts.URL+"/web/fonts/chivo-latin-400-normal.woff2", "")
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("font: status = %d", resp.StatusCode)
 	}
@@ -123,13 +123,13 @@ func TestWebAssets(t *testing.T) {
 	}
 
 	resp = get(t, ts.URL+"/web/../settings.ini", "")
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
 		t.Fatal("traversal served")
 	}
 
 	resp = get(t, ts.URL+"/web/nope.css", "")
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("missing asset: status = %d", resp.StatusCode)
 	}

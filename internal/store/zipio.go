@@ -61,7 +61,7 @@ type ZipResult struct {
 
 // ExportZip writes the archive stored under layout to a zip file at dest.
 // Works for both local and object-store backends.
-func ExportZip(layout *Layout, dest string, opts ExportOptions) (ZipResult, error) {
+func ExportZip(layout *Layout, dest string, opts ExportOptions) (result ZipResult, err error) {
 	src := layout.Root
 	fsys, err := layout.FS()
 	if err != nil {
@@ -107,12 +107,16 @@ func ExportZip(layout *Layout, dest string, opts ExportOptions) (ZipResult, erro
 	if err != nil {
 		return ZipResult{}, err
 	}
-	defer of.Close()
-
 	w := zip.NewWriter(of)
-	defer w.Close()
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			result, err = ZipResult{}, cerr
+		}
+		if cerr := of.Close(); cerr != nil && err == nil {
+			result, err = ZipResult{}, cerr
+		}
+	}()
 
-	var result ZipResult
 	if filteredManifest != nil {
 		n, err := writeZipBytes(w, constants.DirManifest+"/"+constants.FileManifest, filteredManifest)
 		if err != nil {
@@ -243,7 +247,7 @@ func ImportZip(layout *Layout, zipPath string, replace bool) (ZipResult, error) 
 	if err != nil {
 		return ZipResult{}, err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	var result ZipResult
 	for _, file := range r.File {

@@ -60,7 +60,7 @@ func TestHistoryRotation(t *testing.T) {
 	line := "2026-01-01T00:00:00Z requests=100"
 	lineBytes := len(line) + len(" ") + len("2026-01-01T00:00:00Z") + 1
 	n := constants.StatsHistoryMaxBytes/lineBytes + 16
-	for i := 0; i < n; i++ {
+	for range n {
 		if err := fs.AppendHistory(line, time.Unix(0, 0)); err != nil {
 			t.Fatal(err)
 		}

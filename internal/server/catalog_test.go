@@ -104,7 +104,7 @@ func fetchCatalog(t *testing.T, ts *httptest.Server, accept string) (*http.Respo
 	var doc catalogTestDoc
 	if resp.StatusCode == http.StatusOK && resp.Header.Get("Content-Type") == "application/json" {
 		if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			t.Fatalf("catalog decode: %v", err)
 		}
 	}
@@ -116,7 +116,7 @@ func TestVersionsIndexServesHTMLToBrowsers(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/versions", "text/html,application/xhtml+xml")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -134,7 +134,7 @@ func TestVersionsIndexServesJSONCatalog(t *testing.T) {
 	defer ts.Close()
 
 	resp, doc := fetchCatalog(t, ts, "application/json")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -180,7 +180,7 @@ func TestVersionsIndexJSONOverride(t *testing.T) {
 	defer ts.Close()
 
 	resp, _ := fetchCatalog(t, ts, "text/html")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// ?json is exercised below; plain HTML accept gets the page.
 	if ct := resp.Header.Get("Content-Type"); ct != "text/html; charset=utf-8" {
 		t.Fatalf("content-type = %q", ct)
@@ -195,7 +195,7 @@ func TestVersionsIndexJSONOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 	if ct := resp2.Header.Get("Content-Type"); ct != "application/json" {
 		t.Fatalf("?json content-type = %q", ct)
 	}
@@ -206,7 +206,7 @@ func TestVersionDetailPage(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/versions/9.9", "text/html")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -225,7 +225,7 @@ func TestVersionDetailAlias(t *testing.T) {
 
 	// 1.5.0 resolves to archived 1.5, same as the jar routes.
 	resp := get(t, ts.URL+"/versions/1.5.0", "text/html")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("alias status = %d", resp.StatusCode)
 	}
@@ -236,7 +236,7 @@ func TestVersionDetailNotArchived(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/versions/8.8", "text/html")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -247,7 +247,7 @@ func TestVersionJSONStillServed(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/versions/9.9.json", "text/html")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -271,7 +271,7 @@ func TestVersionsSlashRedirects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusMovedPermanently {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}

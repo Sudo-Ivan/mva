@@ -19,7 +19,7 @@ func TestDownloadVerifiedSHA256(t *testing.T) {
 	spec := integrity.FromSHA256(hex.EncodeToString(sum[:]), int64(len(body)))
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
@@ -46,10 +46,10 @@ func TestDownloadVerifiedSHA256RetriesOnMismatch(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if calls == 1 {
-			w.Write([]byte("corrupt"))
+			_, _ = w.Write([]byte("corrupt"))
 			return
 		}
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 

@@ -49,7 +49,7 @@ func TestFetchRelease(t *testing.T) {
 			}}
 			_ = json.NewEncoder(w).Encode(payload)
 		case strings.HasSuffix(r.URL.Path, ".tar.gz"):
-			w.Write(binBody)
+			_, _ = w.Write(binBody)
 		default:
 			http.NotFound(w, r)
 		}

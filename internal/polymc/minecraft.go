@@ -507,13 +507,9 @@ func compareVersion(a, b string) int {
 }
 
 func numkey(s string) string {
-	var num string
-	for _, r := range s {
-		if r >= '0' && r <= '9' {
-			num += string(r)
-		} else {
-			break
-		}
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
 	}
-	return fmt.Sprintf("%09s%s", num, s[len(num):])
+	return fmt.Sprintf("%09s%s", s[:i], s[i:])
 }

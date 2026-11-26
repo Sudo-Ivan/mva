@@ -69,7 +69,7 @@ func benchGet(b *testing.B, url string) {
 				b.Fatal(err)
 			}
 			_, _ = io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	})
 }

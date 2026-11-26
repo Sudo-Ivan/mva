@@ -51,7 +51,7 @@ func TestExportImportZip(t *testing.T) {
 	for _, f := range r.File {
 		names[f.Name] = struct{}{}
 	}
-	r.Close()
+	_ = r.Close()
 	if _, ok := names["manifest/version_manifest_v2.json"]; !ok {
 		t.Fatalf("names = %v", names)
 	}
@@ -91,8 +91,8 @@ func TestImportZipRejectsTraversal(t *testing.T) {
 	if _, err := io.WriteString(entry, "nope"); err != nil {
 		t.Fatal(err)
 	}
-	w.Close()
-	f.Close()
+	_ = w.Close()
+	_ = f.Close()
 
 	destDir := t.TempDir()
 	dest := New(destDir)

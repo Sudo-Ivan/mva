@@ -46,22 +46,22 @@ func newUpstreamStub(t *testing.T) *upstreamStub {
 	u.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/manifest.json":
-			fmt.Fprintf(w, `{"latest":{"release":"9.9"},"versions":[{"id":"9.9","type":"release","url":"%s/v9.json"}]}`, u.URL)
+			_, _ = fmt.Fprintf(w, `{"latest":{"release":"9.9"},"versions":[{"id":"9.9","type":"release","url":"%s/v9.json"}]}`, u.URL)
 		case "/v9.json":
 			u.vjsonHits.Add(1)
-			fmt.Fprintf(w, `{"id":"9.9","downloads":{"client":{"url":"%s/v9.jar","sha1":"%s","size":%d}}}`, u.URL, u.jarSHA1, len(u.jarBytes))
+			_, _ = fmt.Fprintf(w, `{"id":"9.9","downloads":{"client":{"url":"%s/v9.jar","sha1":"%s","size":%d}}}`, u.URL, u.jarSHA1, len(u.jarBytes))
 		case "/v9.jar":
 			u.jarHits.Add(1)
 			if rg := r.Header.Get("Range"); rg == "bytes=0-4" {
 				w.Header().Set("Content-Range", fmt.Sprintf("bytes 0-4/%d", len(u.jarBytes)))
 				w.WriteHeader(http.StatusPartialContent)
-				w.Write(u.jarBytes[:5])
+				_, _ = w.Write(u.jarBytes[:5])
 				return
 			}
-			w.Write(u.jarBytes)
+			_, _ = w.Write(u.jarBytes)
 		case "/libs/com/foo/lib.jar":
 			u.libHits.Add(1)
-			w.Write(u.libBytes)
+			_, _ = w.Write(u.libBytes)
 		default:
 			http.NotFound(w, r)
 		}
@@ -119,7 +119,7 @@ func TestProxyJarCoalescedSingleFetch(t *testing.T) {
 				errs <- err
 				return
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
 				errs <- err
@@ -151,8 +151,8 @@ func TestProxyJarCoalescedSingleFetch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("cached status = %d", resp.StatusCode)
 	}
@@ -172,7 +172,7 @@ func TestProxyLibraryCachedToDisk(t *testing.T) {
 			t.Fatal(err)
 		}
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusOK || string(body) != string(up.libBytes) {
 			t.Fatalf("request %d: status %d body %q", i, resp.StatusCode, body)
 		}
@@ -197,7 +197,7 @@ func TestProxyPassthroughStreams(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || string(body) != string(up.jarBytes) {
 		t.Fatalf("status %d body %q", resp.StatusCode, body)
 	}
@@ -212,7 +212,7 @@ func TestProxyPassthroughStreams(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ = io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusPartialContent {
 		t.Fatalf("range status = %d", resp.StatusCode)
 	}
@@ -232,8 +232,8 @@ func TestManifestETagAnd304(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
 	etag := resp.Header.Get("ETag")
 	if etag == "" {
 		t.Fatal("no ETag on manifest")
@@ -248,7 +248,7 @@ func TestManifestETagAnd304(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusNotModified {
 		t.Fatalf("status = %d, want 304", resp.StatusCode)
 	}
@@ -262,8 +262,8 @@ func TestJarImmutableCacheControl(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
 	if cc := resp.Header.Get("Cache-Control"); cc != constants.CacheControlImmutable {
 		t.Fatalf("Cache-Control = %q", cc)
 	}
@@ -300,7 +300,7 @@ func TestAssetObjectETagAndVerifyCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || string(body) != string(content) {
 		t.Fatalf("status %d body %q", resp.StatusCode, body)
 	}
@@ -317,7 +317,7 @@ func TestAssetObjectETagAndVerifyCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusNotModified {
 		t.Fatalf("status = %d, want 304", resp.StatusCode)
 	}
@@ -333,7 +333,7 @@ func TestAssetObjectETagAndVerifyCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("corrupt asset status = %d, want 404", resp.StatusCode)
 	}
@@ -367,7 +367,7 @@ func TestVersionJSONRenderCacheInvalidation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		b, _ := io.ReadAll(resp.Body)
 		return string(b)
 	}
@@ -405,7 +405,7 @@ func TestStatsClientsFileNotWrittenPerRequest(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 	if _, err := os.Stat(filepath.Join(dir, "stats", "clients.period")); !os.IsNotExist(err) {
 		t.Fatal("clients.period written per request")

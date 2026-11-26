@@ -34,10 +34,10 @@ func TestDownloadResume(t *testing.T) {
 		if rg := r.Header.Get("Range"); rg != "" {
 			w.Header().Set("Content-Range", "bytes 10-25/26")
 			w.WriteHeader(http.StatusPartialContent)
-			w.Write(body[10:])
+			_, _ = w.Write(body[10:])
 			return
 		}
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
@@ -75,7 +75,7 @@ func TestDownloadSkipsExisting(t *testing.T) {
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
-		w.Write([]byte("new"))
+		_, _ = w.Write([]byte("new"))
 	}))
 	defer srv.Close()
 
@@ -100,7 +100,7 @@ func TestGetRetriesOnServerError(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	}))
 	defer srv.Close()
 
@@ -116,7 +116,7 @@ func TestGetRetriesOnServerError(t *testing.T) {
 
 func TestDownloadRecordsStats(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("1234567890"))
+		_, _ = w.Write([]byte("1234567890"))
 	}))
 	defer srv.Close()
 
@@ -135,7 +135,7 @@ func TestDownloadRecordsStats(t *testing.T) {
 
 func TestDownloadLockEvicted(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("data"))
+		_, _ = w.Write([]byte("data"))
 	}))
 	defer srv.Close()
 
@@ -161,10 +161,10 @@ func TestDoStreamsAndRelays(t *testing.T) {
 		if r.Header.Get("Range") == "bytes=0-3" {
 			w.Header().Set("Content-Range", "bytes 0-3/10")
 			w.WriteHeader(http.StatusPartialContent)
-			w.Write([]byte("0123"))
+			_, _ = w.Write([]byte("0123"))
 			return
 		}
-		w.Write([]byte("0123456789"))
+		_, _ = w.Write([]byte("0123456789"))
 	}))
 	defer srv.Close()
 
@@ -173,7 +173,7 @@ func TestDoStreamsAndRelays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -183,7 +183,7 @@ func TestDoStreamsAndRelays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusPartialContent {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -195,7 +195,7 @@ func TestDoStreamsAndRelays(t *testing.T) {
 
 func TestConcurrentDownloadSameDest(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("concurrent-ok"))
+		_, _ = w.Write([]byte("concurrent-ok"))
 	}))
 	defer srv.Close()
 

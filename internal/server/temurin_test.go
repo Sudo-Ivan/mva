@@ -81,7 +81,7 @@ func TestJavaTemurinServe(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -93,7 +93,7 @@ func TestJavaTemurinServe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("binary status = %d", resp.StatusCode)
 	}
@@ -107,7 +107,7 @@ func TestJavaTemurinServe(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ = io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"majors":[21]`) {
 		t.Fatalf("index status=%d body=%q", resp.StatusCode, body)
 	}
@@ -117,7 +117,7 @@ func TestJavaTemurinServe(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ = io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "linux-x64") {
 		t.Fatalf("manifest status=%d body=%q", resp.StatusCode, body)
 	}
@@ -130,7 +130,7 @@ func TestJavaTemurinRouteNotVersionAlias(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
 		t.Fatal("/java/temurin should not match /java/{id}")
 	}

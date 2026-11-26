@@ -52,7 +52,7 @@ func TestGzipManifestResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.Header.Get(constants.HeaderContentEncoding) != "gzip" {
 		t.Fatalf("expected gzip encoding, got %q", resp.Header.Get(constants.HeaderContentEncoding))
 	}
@@ -76,7 +76,7 @@ func TestGzipManifestResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 	if resp2.Header.Get(constants.HeaderContentEncoding) == "gzip" {
 		t.Fatal("unexpected gzip without Accept-Encoding")
 	}
@@ -104,7 +104,7 @@ func TestGzipSkippedForRange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusPartialContent {
 		t.Fatalf("expected 206 for range, got %d", resp.StatusCode)
 	}
@@ -142,7 +142,7 @@ func TestPolyMCMetaComponents(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body, _ := io.ReadAll(resp.Body)
 		return resp.StatusCode, string(body)
 	}

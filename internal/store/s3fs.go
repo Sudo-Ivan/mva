@@ -3,7 +3,7 @@ package store
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" //#nosec G505 -- Mojang artifact checksums use SHA-1.
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -246,14 +246,6 @@ func (s *s3fs) absOfKey(key string) string {
 	return filepath.Join(s.root, filepath.FromSlash(rel))
 }
 
-func (s *s3fs) keyOf(abs string) (string, string, error) {
-	rel, err := s.relOf(abs)
-	if err != nil {
-		return "", "", err
-	}
-	return rel, s.keyOfRel(rel), nil
-}
-
 func normS3Err(err error) error {
 	if err == nil {
 		return nil
@@ -357,7 +349,7 @@ func (s *s3fs) newWriteFile(abs, rel string) (vfs.File, error) {
 		name:   filepath.Base(abs),
 		tmp:    tmp,
 		tmpAbs: spoolAbs,
-		h1:     sha1.New(),
+		h1:     sha1.New(), //#nosec G401 -- Mojang artifact checksums use SHA-1.
 		h2:     sha256.New(),
 	}, nil
 }
@@ -448,13 +440,17 @@ func (s *s3fs) statKey(key string) (fs.FileInfo, error) {
 		Recursive: false,
 		MaxKeys:   1,
 	})
+	found := false
 	for oi := range ch {
 		if oi.Err != nil {
 			return nil, normS3Err(oi.Err)
 		}
-		return s3DirInfo(s.absOfKey(key)), nil
+		found = true
 	}
-	return nil, fmt.Errorf("%w: %s", fs.ErrNotExist, key)
+	if !found {
+		return nil, fmt.Errorf("%w: %s", fs.ErrNotExist, key)
+	}
+	return s3DirInfo(s.absOfKey(key)), nil
 }
 
 func (s *s3fs) Exists(abs string) bool {
@@ -513,7 +509,7 @@ func (s *s3fs) Rename(src, dst string) error {
 		if err != nil {
 			return err
 		}
-		h1, h2 := sha1.New(), sha256.New()
+		h1, h2 := sha1.New(), sha256.New() //#nosec G401 -- Mojang artifact checksums use SHA-1.
 		if _, err := io.Copy(io.MultiWriter(h1, h2), in); err != nil {
 			return err
 		}
@@ -572,8 +568,8 @@ func (s *s3fs) ReadDir(abs string) ([]vfs.DirEntry, error) {
 		if name == "" {
 			continue
 		}
-		if strings.HasSuffix(oi.Key, "/") {
-			entries = append(entries, s3DirEntry{info: s3DirInfo(s.absOfKey(strings.TrimSuffix(oi.Key, "/")))})
+		if before, ok := strings.CutSuffix(oi.Key, "/"); ok {
+			entries = append(entries, s3DirEntry{info: s3DirInfo(s.absOfKey(before))})
 			continue
 		}
 		entries = append(entries, s3DirEntry{info: s3InfoFromObject(oi)})
@@ -641,8 +637,8 @@ func (s *s3fs) walkKeyDir(key, abs string, fn vfs.WalkFunc) error {
 		if oi.Err != nil {
 			return normS3Err(oi.Err)
 		}
-		if strings.HasSuffix(oi.Key, "/") {
-			dkey := strings.TrimSuffix(oi.Key, "/")
+		if before, ok := strings.CutSuffix(oi.Key, "/"); ok {
+			dkey := before
 			dabs := s.absOfKey(dkey)
 			dinfo := s3DirInfo(dabs)
 			if err := fn(dabs, s3WalkEntry{info: dinfo}, nil); err != nil {
@@ -841,7 +837,7 @@ func (s *s3fs) checksumMetadata(data []byte) map[string]string {
 	if len(data) == 0 {
 		return nil
 	}
-	h1, h2 := sha1.New(), sha256.New()
+	h1, h2 := sha1.New(), sha256.New() //#nosec G401 -- Mojang artifact checksums use SHA-1.
 	_, _ = h1.Write(data)
 	_, _ = h2.Write(data)
 	return hashPairMeta(h1, h2)

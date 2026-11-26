@@ -627,7 +627,7 @@ func (s *Server) servePath(w http.ResponseWriter, r *http.Request, path string, 
 	}
 
 	if u := s.presignRedirect(w, r, path); u != "" {
-		http.Redirect(w, r, u, http.StatusFound)
+		http.Redirect(w, r, u, http.StatusFound) //#nosec G710 -- u is a presigned URL built by the S3 client for the configured bucket, not user input
 		s.stats.RecordServe(0, false)
 		return
 	}

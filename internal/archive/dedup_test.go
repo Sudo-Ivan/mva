@@ -26,7 +26,7 @@ func TestArchiveReusesHashIndex(t *testing.T) {
 	var baseURL string
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /mc/game/version_manifest_v2.json", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"latest": map[string]string{"release": "ver-a", "snapshot": "ver-a"},
 			"versions": []map[string]string{
 				{"id": "ver-a", "type": "release", "url": baseURL + "/files/ver-a.json"},
@@ -36,7 +36,7 @@ func TestArchiveReusesHashIndex(t *testing.T) {
 	})
 	for _, id := range []string{"ver-a", "ver-b"} {
 		mux.HandleFunc("GET /files/"+id+".json", func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(map[string]any{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id": id,
 				"downloads": map[string]any{
 					"client": map[string]any{
@@ -51,10 +51,10 @@ func TestArchiveReusesHashIndex(t *testing.T) {
 	downloads := 0
 	mux.HandleFunc("GET /files/client.jar", func(w http.ResponseWriter, r *http.Request) {
 		downloads++
-		w.Write(content)
+		_, _ = w.Write(content)
 	})
 	mux.HandleFunc("GET /files/index.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"objects":{}}`))
+		_, _ = w.Write([]byte(`{"objects":{}}`))
 	})
 
 	ts := httptest.NewServer(mux)

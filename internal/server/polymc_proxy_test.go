@@ -19,9 +19,9 @@ func TestPolyMCFabricLoaderIndexProxy(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/versions/loader/26.2":
-			w.Write([]byte(`[{"loader":{"version":"0.19.3","stable":true}}]`))
+			_, _ = w.Write([]byte(`[{"loader":{"version":"0.19.3","stable":true}}]`))
 		case "/v2/versions/loader":
-			w.Write([]byte(`[{"version":"0.19.3","stable":true}]`))
+			_, _ = w.Write([]byte(`[{"version":"0.19.3","stable":true}]`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -55,7 +55,7 @@ func TestPolyMCFabricLoaderIndexProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("scoped status = %d", resp.StatusCode)
 	}
@@ -79,7 +79,7 @@ func TestPolyMCFabricLoaderIndexProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("global status = %d", resp.StatusCode)
 	}
@@ -93,7 +93,7 @@ func TestPolyMCFabricLoaderIndexNoProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}

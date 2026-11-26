@@ -22,7 +22,7 @@ func TestArchiveVersionFromMockMojang(t *testing.T) {
 	var baseURL string
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /mc/game/version_manifest_v2.json", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"latest": map[string]string{"release": "testver", "snapshot": "testver"},
 			"versions": []map[string]string{{
 				"id": "testver", "type": "release", "url": baseURL + "/files/testver.json",
@@ -30,7 +30,7 @@ func TestArchiveVersionFromMockMojang(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("GET /files/testver.json", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id":   "testver",
 			"type": "release",
 			"downloads": map[string]any{
@@ -45,10 +45,10 @@ func TestArchiveVersionFromMockMojang(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("GET /files/client.jar", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("client-data"))
+		_, _ = w.Write([]byte("client-data"))
 	})
 	mux.HandleFunc("GET /files/index.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"objects":{}}`))
+		_, _ = w.Write([]byte(`{"objects":{}}`))
 	})
 
 	ts := httptest.NewServer(mux)
