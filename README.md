@@ -105,7 +105,7 @@ data/fabric/maven/...         # maven.fabricmc.net artifacts
 ./bin/mva serve --no-refresh
 ```
 
-While serving, mva re-runs the archive every `refresh_min` minutes (default 60, `auto_refresh = true`) so new Mojang releases are picked up automatically. The refresh uses the same version selection as `mva archive`: with no explicit selection it keeps the latest release archived, and `archive_all` keeps every matching version. Runs are idempotent and skip already-archived versions. `GET /health` reports `last_archive` and `last_archive_error` when set.
+While serving, mva re-runs the archive every `refresh_min` minutes (default 60, `auto_refresh = true`) so new Mojang releases are picked up automatically. The refresh uses the same version selection as `mva archive`: with no explicit selection it keeps the latest release archived, and `archive_all` keeps every matching version. Missing Fabric loader metadata and libraries are archived too. Runs are idempotent and skip already-archived versions. `GET /health` reports `last_archive` and `last_archive_error` when set.
 
 Run behind nginx or Caddy with TLS. Set `public_url` to your external URL and enable `trust_proxy` when the proxy sets `X-Forwarded-Proto` and `X-Forwarded-Host`.
 

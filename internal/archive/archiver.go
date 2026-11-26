@@ -145,7 +145,10 @@ func (a *Archiver) runLocked(ctx context.Context) (err error) {
 	pending := coordinator.Pending(ids, coord)
 	if len(pending) == 0 {
 		a.log.Info("archive up to date", "versions", len(ids))
-		return a.writeManifest(manifest, ids)
+		if err := a.writeManifest(manifest, ids); err != nil {
+			return err
+		}
+		return a.ensureFabricArchive(ctx)
 	}
 
 	a.log.Info("archive plan",
@@ -216,7 +219,7 @@ func (a *Archiver) runLocked(ctx context.Context) (err error) {
 		return fmt.Errorf("archive finished with errors: %w", firstErr)
 	}
 	a.log.Info("archive complete", "versions", len(pending))
-	return nil
+	return a.ensureFabricArchive(ctx)
 }
 
 func (a *Archiver) writeManifest(manifest *mojang.Manifest, ids []string) error {

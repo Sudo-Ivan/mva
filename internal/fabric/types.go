@@ -2,7 +2,6 @@ package fabric
 
 import (
 	"encoding/json"
-	"strings"
 
 	"minecraft-version-archive/internal/constants"
 )
@@ -71,8 +70,5 @@ func LibrariesFromDetail(detail LoaderDetail) []Library {
 }
 
 func mavenCoord(maven string) string {
-	if _, after, ok := strings.Cut(maven, ":"); ok {
-		return after
-	}
 	return maven
 }

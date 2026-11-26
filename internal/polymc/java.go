@@ -36,6 +36,26 @@ func temurinPlatID(e *temurin.PlatformEntry) string {
 	return e.RuntimeOS
 }
 
+// javaRuntimeNames returns the Mojang runtime component names satisfied by a
+// Java major. Prism matches these names exactly and uses them as the install
+// directory, so they cannot be vendor-specific file names.
+func javaRuntimeNames(major int) []string {
+	switch major {
+	case 8:
+		return []string{"jre-legacy"}
+	case 16:
+		return []string{"java-runtime-alpha"}
+	case 17:
+		return []string{"java-runtime-alpha", "java-runtime-beta", "java-runtime-gamma", "java-runtime-gamma-snapshot"}
+	case 21:
+		return []string{"java-runtime-delta"}
+	case 25:
+		return []string{"java-runtime-epsilon"}
+	default:
+		return []string{"java-runtime-epsilon"}
+	}
+}
+
 // JavaIndex builds the net.minecraft.java component index from archived
 // Temurin majors. Versions are named java{major} like upstream meta.
 func JavaIndex(layout *store.Layout, publicURL string) ([]byte, error) {
@@ -88,32 +108,33 @@ func JavaVersion(layout *store.Layout, publicURL, version string) ([]byte, error
 
 func javaRuntimeDetail(major int, man *temurin.MajorManifest, publicURL string) ([]byte, error) {
 	base := strings.TrimRight(publicURL, "/")
-	runtimes := make([]any, 0, len(man.Platforms))
+	runtimes := make([]any, 0, len(man.Platforms)*len(javaRuntimeNames(major)))
 	for i := range man.Platforms {
 		e := &man.Platforms[i]
 		platID := temurinPlatID(e)
-		name := "eclipse_temurin_" + strings.TrimPrefix(man.ReleaseName, "jdk-")
-		rt := map[string]any{
-			"checksum": map[string]any{
-				"hash": e.Checksum.Hash,
-				"type": "sha256",
-			},
-			"downloadType": "archive",
-			"name":         name,
-			"packageType":  "jdk",
-			"releaseTime":  man.ReleaseTime,
-			"runtimeOS":    runtimeOSName(e.RuntimeOS),
-			"url":          fmt.Sprintf("%s/java/temurin/%d/%s/%s", base, major, platID, e.File),
-			"vendor":       "eclipse",
-			"version": map[string]any{
-				"major":    man.Version.Major,
-				"minor":    man.Version.Minor,
-				"security": man.Version.Security,
-				"build":    man.Version.Build,
-				"name":     man.Version.Name,
-			},
+		for _, runtimeName := range javaRuntimeNames(major) {
+			rt := map[string]any{
+				"checksum": map[string]any{
+					"hash": e.Checksum.Hash,
+					"type": "sha256",
+				},
+				"downloadType": "archive",
+				"name":         runtimeName,
+				"packageType":  "jdk",
+				"releaseTime":  man.ReleaseTime,
+				"runtimeOS":    runtimeOSName(e.RuntimeOS),
+				"url":          fmt.Sprintf("%s/java/temurin/%d/%s/%s", base, major, platID, e.File),
+				"vendor":       "eclipse",
+				"version": map[string]any{
+					"major":    man.Version.Major,
+					"minor":    man.Version.Minor,
+					"security": man.Version.Security,
+					"build":    man.Version.Build,
+					"name":     man.Version.Name,
+				},
+			}
+			runtimes = append(runtimes, rt)
 		}
-		runtimes = append(runtimes, rt)
 	}
 	out := map[string]any{
 		"formatVersion": 1,

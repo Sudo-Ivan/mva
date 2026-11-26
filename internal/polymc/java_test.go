@@ -95,7 +95,7 @@ func TestJavaIndexAndVersion(t *testing.T) {
 		t.Fatalf("bad java detail: %s", detail)
 	}
 	rt := doc.Runtimes[0]
-	if rt["runtimeOS"] != "linux-x64" || rt["downloadType"] != "archive" || rt["packageType"] != "jdk" || rt["vendor"] != "eclipse" {
+	if rt["name"] != "java-runtime-delta" || rt["runtimeOS"] != "linux-x64" || rt["downloadType"] != "archive" || rt["packageType"] != "jdk" || rt["vendor"] != "eclipse" {
 		t.Fatalf("bad runtime entry: %v", rt)
 	}
 	if rt["url"] != "http://mirror/java/temurin/21/linux-x64/jdk-linux.tar.gz" {
@@ -110,5 +110,26 @@ func TestJavaIndexAndVersion(t *testing.T) {
 	}
 	if _, err := JavaVersion(layout, "http://mirror", "java8"); err == nil {
 		t.Fatal("expected error for unarchived major")
+	}
+}
+
+func TestJavaRuntimeNamesMatchMojangComponents(t *testing.T) {
+	cases := map[int][]string{
+		8:  {"jre-legacy"},
+		16: {"java-runtime-alpha"},
+		17: {"java-runtime-alpha", "java-runtime-beta", "java-runtime-gamma", "java-runtime-gamma-snapshot"},
+		21: {"java-runtime-delta"},
+		25: {"java-runtime-epsilon"},
+	}
+	for major, want := range cases {
+		got := javaRuntimeNames(major)
+		if len(got) != len(want) {
+			t.Fatalf("java%d names = %v, want %v", major, got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("java%d names = %v, want %v", major, got, want)
+			}
+		}
 	}
 }

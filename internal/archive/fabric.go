@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -77,6 +78,74 @@ func (a *Archiver) RunFabric(ctx context.Context, opts FabricOptions) error {
 	prog.logStatus(true)
 	a.log.Info("fabric archive complete", "minecraft", len(mcVersions), "loaders", loaderTotal)
 	return nil
+}
+
+// ensureFabricArchive fills in missing Fabric metadata without re-downloading
+// every version on each refresh. If the global loader list changes, all
+// versions are refreshed because their recommended stable loader may have
+// changed. Otherwise only versions with missing loader metadata are archived.
+func (a *Archiver) ensureFabricArchive(ctx context.Context) error {
+	mcVersions, err := a.resolveFabricMCVersions(nil)
+	if err != nil {
+		return err
+	}
+	if len(mcVersions) == 0 {
+		return nil
+	}
+
+	refreshAll, err := a.fabricLoaderIndexChanged(ctx)
+	if err != nil {
+		a.log.Warn("fabric archive check failed", "err", err)
+		return nil
+	}
+	todo := make([]string, 0, len(mcVersions))
+	for _, mc := range mcVersions {
+		if refreshAll || a.fabricMCNeedsArchive(mc) {
+			todo = append(todo, mc)
+		}
+	}
+	if len(todo) == 0 {
+		return nil
+	}
+	a.log.Info("fabric archive required", "versions", len(todo), "loader_index_changed", refreshAll)
+	if err := a.RunFabric(ctx, FabricOptions{MCVersions: todo}); err != nil {
+		a.log.Warn("fabric archive failed", "err", err)
+	}
+	return nil
+}
+
+func (a *Archiver) fabricLoaderIndexChanged(ctx context.Context) (bool, error) {
+	rel := "v2/versions/loader"
+	data, err := a.fetch.Get(ctx, fabric.MetaURL(rel))
+	if err != nil {
+		return false, err
+	}
+	path := a.layout.FabricMetaPath(fabric.MetaStorageRel(rel))
+	old, err := a.layout.ReadFile(path)
+	if err != nil {
+		return true, nil
+	}
+	return !bytes.Equal(old, data), nil
+}
+
+func (a *Archiver) fabricMCNeedsArchive(mc string) bool {
+	enc := fabric.EncodeGameVersion(mc)
+	listRel := "v2/versions/loader/" + enc
+	data, err := a.layout.ReadFile(a.layout.FabricMetaPath(fabric.MetaStorageRel(listRel)))
+	if err != nil {
+		return true
+	}
+	pairs, err := fabric.ParseLoaderPairs(data)
+	if err != nil || len(pairs) == 0 {
+		return false
+	}
+	for _, loader := range selectFabricLoaders(pairs, FabricOptions{}) {
+		detailRel := listRel + "/" + fabric.EncodeGameVersion(loader)
+		if !a.layout.Exists(a.layout.FabricMetaPath(fabric.MetaStorageRel(detailRel))) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *Archiver) countFabricLoaders(ctx context.Context, mc string, opts FabricOptions) (int, error) {

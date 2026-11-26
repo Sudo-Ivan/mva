@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"minecraft-version-archive/internal/constants"
 	"minecraft-version-archive/internal/fabric"
@@ -75,7 +74,7 @@ func components(layout *store.Layout, publicURL string) []component {
 		{UIDMinecraft, "Minecraft", func() ([]byte, error) { return MinecraftIndex(layout, publicURL) }},
 		{UIDJava, "Java Runtimes", func() ([]byte, error) { return JavaIndex(layout, publicURL) }},
 		{UIDFabricLoader, "Fabric Loader", func() ([]byte, error) { return FabricLoaderIndex(layout, "") }},
-		{UIDIntermediary, "Intermediary Mappings", func() ([]byte, error) { return IntermediaryIndex(layout) }},
+		{UIDIntermediary, "Intermediary Mappings", func() ([]byte, error) { return IntermediaryIndex(layout, publicURL) }},
 		{UIDLWJGL3, "LWJGL 3", func() ([]byte, error) { return LWJGLIndex(layout, publicURL, UIDLWJGL3) }},
 		{UIDLWJGL2, "LWJGL 2", func() ([]byte, error) { return LWJGLIndex(layout, publicURL, UIDLWJGL2) }},
 	}
@@ -128,7 +127,7 @@ func ServeMeta(layout *store.Layout, relPath, mcVersion, publicURL string) ([]by
 		data, err := FabricLoaderIndex(layout, mcVersion)
 		return data, true, err
 	case UIDIntermediary + "/index.json":
-		data, err := IntermediaryIndex(layout)
+		data, err := IntermediaryIndex(layout, publicURL)
 		return data, true, err
 	}
 
@@ -163,7 +162,7 @@ func ServeMeta(layout *store.Layout, relPath, mcVersion, publicURL string) ([]by
 
 	if strings.HasPrefix(relPath, UIDIntermediary+"/") && strings.HasSuffix(relPath, ".json") {
 		version := strings.TrimSuffix(strings.TrimPrefix(relPath, UIDIntermediary+"/"), ".json")
-		data, err := IntermediaryVersion(version)
+		data, err := IntermediaryVersion(layout, version, publicURL)
 		return data, true, err
 	}
 
@@ -181,12 +180,47 @@ func FabricLoaderIndex(layout *store.Layout, mcVersion string) ([]byte, error) {
 }
 
 func fabricLoaderIndexForMC(layout *store.Layout, mcVersion string) ([]byte, error) {
-	rel := "v2/versions/loader/" + fabric.EncodeGameVersion(mcVersion)
+	encMC := fabric.EncodeGameVersion(mcVersion)
+	rel := "v2/versions/loader/" + encMC
 	data, ok := readFabricMeta(layout, rel)
 	if !ok {
 		return nil, fmt.Errorf("no fabric loaders archived for %s", mcVersion)
 	}
-	return LoaderIndexFromMCDataWithTimes(data, mcVersion, LoaderReleaseTimes(context.Background()))
+	pairs, err := fabric.ParseLoaderPairs(data)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]VersionEntry, 0, len(pairs))
+	firstStable := true
+	for _, pair := range pairs {
+		loader := pair.Loader.Version
+		if loader == "" {
+			continue
+		}
+		if !fabricLoaderDetailExists(layout, encMC, loader) {
+			continue
+		}
+		entry := VersionEntry{
+			Version:  loader,
+			Type:     "release",
+			Requires: fabricLoaderRequires(mcVersion),
+		}
+		if pair.Loader.Stable && firstStable {
+			entry.Recommended = true
+			firstStable = false
+		}
+		entries = append(entries, entry)
+	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("no fabric loaders archived for %s", mcVersion)
+	}
+	applyReleaseTimes(entries, LoaderReleaseTimes(context.Background()))
+	return marshalVersionList(UIDFabricLoader, "Fabric Loader", entries)
+}
+
+func fabricLoaderDetailExists(layout *store.Layout, encMC, loader string) bool {
+	detailRel := "v2/versions/loader/" + encMC + "/" + fabric.EncodeGameVersion(loader)
+	return layout.Exists(layout.FabricMetaPath(fabric.MetaStorageRel(detailRel)))
 }
 
 func LoaderIndexFromMCData(data []byte, mcVersion string) ([]byte, error) {
@@ -257,44 +291,40 @@ func loaderIndexFromGlobalData(data []byte, times map[string]string) ([]byte, er
 }
 
 func aggregateLoaderIndex(layout *store.Layout) ([]byte, error) {
-	loaderDir := filepath.Join(layout.FabricMetaDir(), "v2", "versions", "loader")
+	loaderDir := filepath.Join(layout.FabricMetaDir(), "v2", "versions", "loader", "_mc")
 	entries, err := layout.ReadDir(loaderDir)
 	if err != nil {
 		return nil, fmt.Errorf("no fabric loader metadata archived")
 	}
 	seen := make(map[string]VersionEntry)
 	for _, ent := range entries {
-		if ent.IsDir() {
+		if ent.IsDir() || !strings.HasSuffix(ent.Name(), ".json") {
 			continue
 		}
+		mcFile := strings.TrimSuffix(ent.Name(), ".json")
 		data, err := layout.ReadFile(filepath.Join(loaderDir, ent.Name()))
 		if err != nil {
 			continue
 		}
 		pairs, err := fabric.ParseLoaderPairs(data)
 		if err != nil {
-			var items []fabric.VersionEntry
-			if json.Unmarshal(data, &items) == nil {
-				for _, item := range items {
-					seen[item.Version] = VersionEntry{
-						Version:     item.Version,
-						Type:        "release",
-						Requires:    []Require{{UID: UIDIntermediary}},
-						Recommended: item.Stable,
-					}
-				}
-			}
 			continue
 		}
 		for _, pair := range pairs {
-			if pair.Loader.Version == "" {
+			loader := pair.Loader.Version
+			if loader == "" {
 				continue
 			}
-			seen[pair.Loader.Version] = VersionEntry{
-				Version:     pair.Loader.Version,
-				Type:        "release",
-				Requires:    []Require{{UID: UIDIntermediary}},
-				Recommended: pair.Loader.Stable,
+			if !fabricLoaderDetailExists(layout, mcFile, loader) {
+				continue
+			}
+			if _, ok := seen[loader]; !ok {
+				seen[loader] = VersionEntry{
+					Version:     loader,
+					Type:        "release",
+					Requires:    []Require{{UID: UIDIntermediary}},
+					Recommended: pair.Loader.Stable,
+				}
 			}
 		}
 	}
@@ -375,24 +405,29 @@ func loaderDetailToVersionFile(detail fabric.LoaderDetail, loaderVersion, mcVers
 	return json.MarshalIndent(file, "", "    ")
 }
 
-func IntermediaryIndex(layout *store.Layout) ([]byte, error) {
+func IntermediaryIndex(layout *store.Layout, publicURL string) ([]byte, error) {
 	entries, err := layout.ReadDir(layout.VersionsDir())
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now().UTC().Format(time.RFC3339)
 	out := make([]VersionEntry, 0)
 	for _, ent := range entries {
 		if ent.IsDir() || !strings.HasSuffix(ent.Name(), ".json") {
 			continue
 		}
 		id := strings.TrimSuffix(ent.Name(), ".json")
+		detail, err := IntermediaryVersion(layout, id, publicURL)
+		if err != nil {
+			continue
+		}
+		sum := sha256.Sum256(detail)
 		out = append(out, VersionEntry{
 			Version:     id,
 			Type:        "release",
-			ReleaseTime: now,
+			ReleaseTime: intermediaryReleaseTime(layout, id),
 			Recommended: true,
 			Volatile:    true,
+			SHA256:      hex.EncodeToString(sum[:]),
 			Requires:    []Require{{UID: "net.minecraft", Equals: id}},
 		})
 	}
@@ -402,7 +437,21 @@ func IntermediaryIndex(layout *store.Layout) ([]byte, error) {
 	return marshalVersionList(UIDIntermediary, "Intermediary Mappings", out)
 }
 
-func IntermediaryVersion(version string) ([]byte, error) {
+func intermediaryReleaseTime(layout *store.Layout, version string) string {
+	doc, err := readVersionDoc(layout, version)
+	if err == nil {
+		if releaseTime, ok := doc["releaseTime"].(string); ok && releaseTime != "" {
+			return releaseTime
+		}
+	}
+	return "1970-01-01T00:00:00Z"
+}
+
+func IntermediaryVersion(layout *store.Layout, version, publicURL string) ([]byte, error) {
+	mavenBase := FabricMavenPublic
+	if publicURL != "" {
+		mavenBase = strings.TrimRight(publicURL, "/") + "/maven/fabricmc/"
+	}
 	file := VersionFile{
 		FormatVersion: 1,
 		UID:           UIDIntermediary,
@@ -410,10 +459,10 @@ func IntermediaryVersion(version string) ([]byte, error) {
 		Name:          "Intermediary Mappings",
 		Type:          "release",
 		Order:         11,
-		ReleaseTime:   time.Now().UTC().Format(time.RFC3339),
+		ReleaseTime:   intermediaryReleaseTime(layout, version),
 		Volatile:      true,
 		Libraries: []Library{
-			{Name: "net.fabricmc:intermediary:" + version, URL: FabricMavenPublic},
+			{Name: "net.fabricmc:intermediary:" + version, URL: mavenBase},
 		},
 		Requires: []Require{{UID: "net.minecraft", Equals: version}},
 	}
@@ -439,7 +488,7 @@ func fabricMCCandidates(layout *store.Layout, mcVersion string) []string {
 }
 
 func readFabricMeta(layout *store.Layout, rel string) ([]byte, bool) {
-	path := layout.FabricMetaPath(rel)
+	path := layout.FabricMetaPath(fabric.MetaStorageRel(rel))
 	data, err := layout.ReadFile(path)
 	if err != nil {
 		return nil, false
