@@ -117,6 +117,8 @@ func javaRuntimeDetail(major int, man *temurin.MajorManifest, publicURL string) 
 	}
 	out := map[string]any{
 		"formatVersion": 1,
+		"uid":           UIDJava,
+		"version":       "java" + strconv.Itoa(major),
 		"name":          "Java " + strconv.Itoa(major),
 		"releaseTime":   man.ReleaseTime,
 		"runtimes":      runtimes,

@@ -83,13 +83,15 @@ func TestJavaIndexAndVersion(t *testing.T) {
 	}
 	var doc struct {
 		FormatVersion int `json:"formatVersion"`
+		UID           string
+		Version       string
 		Name          string
 		Runtimes      []map[string]any `json:"runtimes"`
 	}
 	if err := json.Unmarshal(detail, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc.Name != "Java 21" || len(doc.Runtimes) != 2 {
+	if doc.UID != UIDJava || doc.Version != "java21" || doc.Name != "Java 21" || len(doc.Runtimes) != 2 {
 		t.Fatalf("bad java detail: %s", detail)
 	}
 	rt := doc.Runtimes[0]
