@@ -2,11 +2,13 @@ package fetch
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -61,6 +63,65 @@ func TestDownloadResume(t *testing.T) {
 	}
 	if string(got) != string(body) {
 		t.Fatalf("got %q want %q", got, body)
+	}
+}
+
+func TestDownloadResumeRestartsRangeAfterInterruptedRetry(t *testing.T) {
+	body := []byte("abcdefghijklmnopqrstuvwxyz")
+	var calls atomic.Int64
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := calls.Add(1)
+		rg := r.Header.Get("Range")
+		if call == 1 {
+			if rg != "bytes=10-" {
+				t.Errorf("first range = %q", rg)
+			}
+			w.Header().Set("Content-Range", "bytes 10-25/26")
+			w.Header().Set("Content-Length", "16")
+			w.WriteHeader(http.StatusPartialContent)
+			_, _ = w.Write(body[10:15])
+			return
+		}
+
+		start := int64(-1)
+		if strings.HasPrefix(rg, "bytes=") {
+			_, _ = fmt.Sscanf(rg, "bytes=%d-", &start)
+		}
+		if start < 0 || start >= int64(len(body)) {
+			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+		chunk := body[start:]
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-25/26", start))
+		w.Header().Set("Content-Length", fmt.Sprint(len(chunk)))
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(chunk)
+	}))
+	defer srv.Close()
+
+	dir, root := testDataDir(t)
+	dest := filepath.Join(root, "resume-interrupted.bin")
+	part := dest + ".part"
+	if err := os.WriteFile(part, body[:10], 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	client := New(3, 1).WithDataDir(dir)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := client.Download(ctx, srv.URL, dest); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(body) {
+		t.Fatalf("got %q want %q", got, body)
+	}
+	if calls.Load() < 2 {
+		t.Fatalf("server calls = %d, want at least 2", calls.Load())
 	}
 }
 

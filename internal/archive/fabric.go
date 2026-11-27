@@ -175,23 +175,6 @@ func (a *Archiver) fabricMCNeedsArchive(mc string) bool {
 	return false
 }
 
-func (a *Archiver) countFabricLoaders(ctx context.Context, mc string, opts FabricOptions) (int, error) {
-	if opts.LoaderVersion != "" {
-		return 1, nil
-	}
-	enc := fabric.EncodeGameVersion(mc)
-	listData, err := a.fetch.Get(ctx, fabric.MetaURL("v2/versions/loader/"+enc))
-	if err != nil {
-		return 0, fmt.Errorf("loader list %s: %w", mc, err)
-	}
-	pairs, err := fabric.ParseLoaderPairs(listData)
-	if err != nil {
-		return 0, err
-	}
-	loaders := selectFabricLoaders(pairs, opts)
-	return len(loaders), nil
-}
-
 func (a *Archiver) resolveFabricMCVersions(requested []string) ([]string, error) {
 	if len(requested) > 0 {
 		return requested, nil

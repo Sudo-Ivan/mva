@@ -203,6 +203,10 @@ func MinecraftDetail(layout *store.Layout, version, publicURL string) ([]byte, e
 	if err != nil {
 		return nil, err
 	}
+	return minecraftDetailFromDoc(doc, version, publicURL)
+}
+
+func minecraftDetailFromDoc(doc map[string]any, version, publicURL string) ([]byte, error) {
 	base := strings.TrimRight(publicURL, "/")
 	id, _ := doc["id"].(string)
 	if id == "" {
@@ -324,7 +328,7 @@ func MinecraftIndex(layout *store.Layout, publicURL string) ([]byte, error) {
 		if err != nil {
 			continue
 		}
-		detail, err := MinecraftDetail(layout, id, publicURL)
+		detail, err := minecraftDetailFromDoc(doc, id, publicURL)
 		if err != nil {
 			continue
 		}

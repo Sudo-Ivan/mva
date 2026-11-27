@@ -42,3 +42,30 @@ func TestPolyMCIndexWarmsComponentCaches(t *testing.T) {
 		t.Fatalf("root index generation did not warm %q", key)
 	}
 }
+
+func TestPolyMCMetaCachesMissingResponses(t *testing.T) {
+	dir := t.TempDir()
+	layout := store.New(dir)
+	if err := layout.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{DataDir: dir, PublicURL: "http://test", CacheEnabled: true, CacheEntries: 64, CacheBytes: 64 << 20}
+	log := slog.New(slog.DiscardHandler)
+	srv := New(cfg, archive.NewWithStats(cfg, log, stats.New()), log)
+
+	ent, err := srv.servePolyMCMeta(context.Background(), "org.lwjgl3/not-archived.json", "", cfg.PublicURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ent.found {
+		t.Fatal("missing component reported as found")
+	}
+	key := "org.lwjgl3/not-archived.json\x00\x00" + cfg.PublicURL
+	cached, ok := srv.metaResp.Load(key)
+	if !ok {
+		t.Fatal("missing response was not cached")
+	}
+	if cached.(*metaResponse).found {
+		t.Fatal("cached missing response marked found")
+	}
+}

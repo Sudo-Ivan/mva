@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -214,24 +216,6 @@ func (c *Client) downloadLocked(ctx context.Context, url, dest string) error {
 	}
 
 	tmp := dest + constants.FilePartSuffix
-	offset := int64(0)
-	if c.data != nil {
-		if st, err := c.data.Stat(tmp); err == nil {
-			offset = st.Size()
-		}
-	} else if st, err := os.Stat(tmp); err == nil {
-		offset = st.Size()
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	c.applyHeaders(req)
-	if offset > 0 {
-		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
-	}
-
 	var last error
 	for attempt := 0; attempt < c.retry; attempt++ {
 		if attempt > 0 {
@@ -243,6 +227,19 @@ func (c *Client) downloadLocked(ctx context.Context, url, dest string) error {
 			}
 		}
 
+		offset := int64(0)
+		if st, err := c.statPath(tmp); err == nil {
+			offset = st.Size()
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return err
+		}
+		c.applyHeaders(req)
+		if offset > 0 {
+			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+		}
+
 		resp, err := c.http.Do(req)
 		if err != nil {
 			last = err
@@ -251,15 +248,19 @@ func (c *Client) downloadLocked(ctx context.Context, url, dest string) error {
 
 		switch resp.StatusCode {
 		case http.StatusOK:
-			offset = 0
-			err = c.writeBody(resp.Body, tmp, offset, true)
+			err = c.writeBody(resp.Body, tmp, 0, true)
 		case http.StatusPartialContent:
+			start, ok := contentRangeStart(resp.Header.Get("Content-Range"))
+			if !ok || start != offset {
+				_ = resp.Body.Close()
+				c.removePath(tmp)
+				last = fmt.Errorf("GET %s: unexpected content range %q for offset %d", url, resp.Header.Get("Content-Range"), offset)
+				continue
+			}
 			err = c.writeBody(resp.Body, tmp, offset, false)
 		case http.StatusRequestedRangeNotSatisfiable:
 			_ = resp.Body.Close()
-			offset = 0
 			c.removePath(tmp)
-			req.Header.Del("Range")
 			continue
 		default:
 			_ = resp.Body.Close()
@@ -322,6 +323,22 @@ func (c *Client) DownloadVerified(ctx context.Context, url, dest string, spec in
 		return nil
 	}
 	return last
+}
+
+func contentRangeStart(header string) (int64, bool) {
+	if !strings.HasPrefix(header, "bytes ") {
+		return 0, false
+	}
+	rangeSpec := strings.TrimSpace(strings.TrimPrefix(header, "bytes "))
+	dash := strings.IndexByte(rangeSpec, '-')
+	if dash <= 0 {
+		return 0, false
+	}
+	start, err := strconv.ParseInt(strings.TrimSpace(rangeSpec[:dash]), 10, 64)
+	if err != nil || start < 0 {
+		return 0, false
+	}
+	return start, true
 }
 
 var copyBufPool = sync.Pool{New: func() any { b := make([]byte, 256<<10); return &b }}

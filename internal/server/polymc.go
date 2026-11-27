@@ -53,7 +53,13 @@ func (s *Server) servePolyMCMeta(ctx context.Context, rel, mcVersion, publicURL 
 			return nil, err
 		}
 		if !ok {
-			return &metaResponse{exp: time.Now().Add(ttl)}, nil
+			miss := &metaResponse{exp: time.Now().Add(ttl)}
+			s.metaResp.Store(key, miss)
+			if s.metaCount.Add(1) > constants.MetaCacheMaxEntries {
+				s.metaResp.Clear()
+				s.metaCount.Store(0)
+			}
+			return miss, nil
 		}
 		e := &metaResponse{
 			body:  data,
